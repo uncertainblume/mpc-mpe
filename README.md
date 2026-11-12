@@ -2,10 +2,13 @@
 
 Full MPE on an Akai MPC, using the plugin support that arrived in MPC OS 3.10.1.
 
-**Status: built and desk-tested, not yet run on an MPC.** Both plugins build for 32-bit
-and 64-bit MPCs and pass the SDK's host simulator; the routing logic has its own passing
-tests. What the MPC itself does with them is still unverified: start with the checklist
-at the end of [docs/research.md](docs/research.md).
+**Status: MPE Synth plays full MPE on an MPC Live III (3.10.1.12); MPE Bridge passes MPE
+to stock instruments but glitches on slides in different directions.** Both plugins build for 32-bit and 64-bit MPCs and pass the SDK's host
+simulator; the routing logic has its own passing tests. On the device, MPE Synth on a
+track played from a LinnStrument received each note on its own channel *through the
+track*, without needing its port. The ports also work: the MPC picks them up and channels
+pass through intact. See "Device findings" and the remaining checklist at the end of
+[docs/research.md](docs/research.md).
 
 ## The problem
 
@@ -86,6 +89,15 @@ tools/                    build, test and fetch scripts
 
 Inside each plugin, `src/mpe` is a symbolic link to `shared/mpe`. On Windows, clone with
 symlinks enabled (`git clone -c core.symlinks=true`) or copy the folder in.
+
+## Planned
+
+- **A proper interface for MPE Synth.** Deep patch building and saving from the MPC
+  itself, using its controls and Q-Links, in place of the current two pages of knobs.
+- **Surge on the MPC with full MPE.** Port
+  [SurgeXXL](https://github.com/sunskiefer/SurgeXXL), or another Surge XT port, to the
+  MPC as an MPE instrument. Not yet investigated: its licence, build requirements and
+  CPU cost on MPC hardware.
 
 ## Good to know
 

@@ -2,8 +2,10 @@
 
 Findings from the documentation gathered on 2026-11-12 (list and links in
 [sources.md](sources.md)). Each claim says where it comes from. "Verified" below always
-means *verified by the cited source*, never by this project: nothing here has been run on
-an MPC yet. The last section lists what to check first on a device.
+means *verified by the cited source*, not by this project. The one exception is the section
+[Device findings, 2026-11-12](#device-findings-2026-11-12), which records what was measured
+on an MPC Live III; it settles the port question and leaves the track-routing questions
+open.
 
 ## The short version
 
@@ -74,9 +76,10 @@ Nothing in the user guide or any release notes from 3.6 to 3.10.1 mentions MPE b
 
 MPC 3.10.1's Developer panel (Shift + Menu, then Developer in the mode menu) gives a
 shell, switches on the SSH server, shows system logs and manages external plugins. That
-makes the open questions below checkable directly on the device (`aconnect -l` lists
-sequencer ports and their connections; `aseqdump -p <port>` prints what arrives, with
-channels). The *Advanced audio settings* enhancement exposes the block size, which sets
+makes the open questions below checkable directly on the device. `aconnect` and `aseqdump`
+are not installed on 3.10.1; use `cat /proc/asound/seq/clients` for ports and connections,
+and `arecordmidi -p <port> file.mid` / `aplaymidi -p <port> file.mid` to capture and send
+with channels. The *Advanced audio settings* enhancement exposes the block size, which sets
 the timing resolution of port MIDI.
 
 ## What the community measured
@@ -168,7 +171,108 @@ channel you "lose polyphonic pitch-bend … but retain poly-aftertouch".
 Both could stop working in a later MPC OS. If ports stop appearing, the *Port* status
 reads "No port" and the plugins fall back to the track.
 
+## Device findings, 2026-11-12
+
+Device: MPC Live III, MPC 3.10.1.12 (firmware 9a27d579), aarch64, kernel 6.18.44-rt,
+developer mode on, reached over SSH. Both plugins were built with `tools/build.sh` and
+installed to the internal drive (`/nvme/VST2 Plugins`) with the SDK's `mpc_remote.py`.
+
+**How it was tested, and what that does not cover.** Nobody was at the touchscreen, so
+the plugins were never loaded on a track by the MPC itself. Instead the installed arm64
+binaries were loaded on the device by a small stand-in VST2 host run over SSH (a separate
+process calling `processReplacing` every 128 frames in real time), with test MIDI sent
+and captured by `aplaymidi` / `arecordmidi`. That exercises the real plugin code, the
+device's `libasound` and kernel, and the MPC application's reaction to the ports. It does
+not exercise the MPC's own plugin loader or any MIDI that passes *through an MPC track*.
+
+Measured:
+
+- **The plugins' ports open on the device.** `dlopen("libasound.so.2")` succeeds
+  (`/usr/lib/libasound.so.2.0.0`), *Port* reads OK, and the sequencer shows client
+  `"MPE Bridge"` with `MIDI In` (write) and `MIDI Out` (read), and client `"MPE Synth"`
+  with `MIDI In`. Both plugins answer 1 to `effCanDo("MPE")`.
+- **MPC 3.10.1 hot-detects them, in both directions.** Within 4 seconds the application's
+  own client `"MPC 3"` had created matching ports and subscribed them:
+
+  ```
+  Client 129 : "MPC 3"
+    Port  14 : "MPE Bridge MIDI Out" (-we-)   Connected From: 130:1
+    Port  15 : "MPE Bridge MIDI In"  (r-e-)   Connecting To: 130:0
+  Client 130 : "MPE Bridge"
+    Port   0 : "MIDI In"  (-We-)              Connected From: 129:15
+    Port   1 : "MIDI Out" (R-e-)              Connecting To: 129:14
+  ```
+
+  and likewise `"MPE Synth MIDI In"` → `MPE Synth:0`. The names are the ones the guides
+  use. When the plugin closes, the MPC removes its ports again; the MPC application kept
+  running throughout (same process id before and after).
+- **Channels survive the ports and the plugin code.** A 40-event file (8 notes on channels
+  2 to 9, each with pitch bend, channel pressure and CC 74, then 8 note-offs) was played
+  into `MPE Bridge:0` and captured from `MPE Bridge:1`:
+  - *Thru*: the capture is identical to what was sent, event for event. *Port Chs* read
+    "2-9", *Track Chs* "none".
+  - *Rotate* (defaults: 8 voices from channel 2, In Bend Auto, Out Bend 12): each note
+    stays on its own channel, preceded by a bend / CC 74 / pressure reset, with bends
+    scaled 48 → 12 semitones (for example `e5 74 45` became `e5 50 57`) and pressure and
+    CC 74 unchanged.
+  - *MPE Synth*: the same file into `MPE Synth:0` gave *Port Chs* "2-9" and audio out of
+    the plugin (peak about 0.21) while the notes were held, silence after.
+
+**On a track, loaded by the MPC itself (same day, reported from the touchscreen).** MPE
+Synth was loaded on a track and played from a LinnStrument:
+
+- The MPC's loader runs the plugin and its port opens: the sequencer showed client
+  `"MPE Synth"` with the MPC's own "MPE Synth MIDI In" port subscribed to it.
+- **The track delivered note-ons on their own channels.** *Track Chs* read "1-8" and
+  *Port Chs* "none", so nothing went through the port, and per-note pitch bend and
+  pressure were heard working. This contradicts the 3.9.1 community trace (every note-on
+  on channel 1). Not yet separated: whether MPC 3.10.1 changed this for all plugins, or
+  whether it happens because the plugin answers yes to `MPE`.
+- Not recorded: the exact track routing used (assumed: LinnStrument as the plugin
+  track's own input) and the LinnStrument's channel settings.
+
+What this changes: for an MPE *instrument plugin* on 3.10.1 the port detour looks
+unnecessary; design 1 can be a single plugin track. It does not help stock MPC
+instruments, so the bridge and its ports are still the route for those. The statements
+earlier in this document that a plugin on a track gets note-ons on channel 1 describe
+3.9.1 and are not true of this setup.
+
+**MPE Bridge on a track (same day, reported from the touchscreen; settings not
+recorded).** Tried with Fabric (sampled) and OPx-4 (modelled) as the instruments:
+
+- MPE data reaches the stock instruments through the bridge.
+- Bend range gives odd results. Not yet narrowed down: the bridge's In Bend / Out Bend
+  against the LinnStrument's range and each instrument's own Pitch Bend Range setting.
+- **Polyphonic slides glitch when notes bend in different directions**, on both
+  instruments. Not diagnosed. A guess to check first, not a finding: bends are not being
+  kept apart per copy, which would happen if the instrument tracks are not each limited
+  to a single MIDI input channel, or if the MPC applies pitch bend from the bridge's port
+  to more than the track whose channel matches. Capturing "MPE Bridge MIDI Out" with
+  `arecordmidi` while reproducing it would show whether the bridge's output is already
+  wrong or the fault is downstream.
+- **Retrospective Record fills in about ten seconds** of MPE playing. Its buffer was
+  described as 4096 long; the dense stream of bend, pressure and CC 74 messages is the
+  likely cause. Thinning that stream (in the LinnStrument's settings or in the bridge)
+  is untested.
+- CPU cost of the per-voice instrument copies and MIDI tracks: not measured.
+
+Also seen on this device:
+
+- No ALSA sequencer client for a LinnStrument or any other USB controller was present, so
+  nothing live was played.
+- Removable drives are mounted `noexec` (the SDK's remote tool warns that plugins "may
+  not load from here"); the internal drive is not. Whether the MPC loads plugins from a
+  removable drive anyway was not tested. This matters for the README's "copy to a USB
+  drive or SD card" instruction.
+- The MPC application also owns a client `"JUCE"` with *Virtual MIDI Input/Output 1–2*
+  ports wired to itself. Not investigated.
+
 ## Open questions: check these first on a device
+
+Status after the findings above: question 1 is answered except for seeing the name in a
+track's port list; question 3 is answered yes for live playing; questions 2, 4 and 5 are
+still open, as are the follow-ups under 3. The bridge now works on a track in the sense
+that data arrives, with the faults listed above still to diagnose.
 
 Both plugins have a status page showing **Port** (OK / No port), **Port Chs** and
 **Track Chs** (the channels on which note-ons have arrived by each route; turn the knob to
@@ -176,7 +280,11 @@ refresh the text, turn it up to clear).
 
 1. **Do the ports appear under the official 3.10.1 loader?** Load MPE Synth, open a MIDI
    track's output port list and look for "MPE Synth MIDI In". *Port* should read OK.
-   (Verified by the community on 3.9.1 only.)
+   **Partly answered (2026-11-12):** on 3.10.1.12 the installed plugin opens its port and
+   the MPC creates and subscribes a matching "MPE Synth MIDI In" port (same for both
+   bridge ports) when the plugin runs in a stand-in host. Still to confirm: that the MPC's
+   loader instantiates the plugin without restrictions that block the port, and that the
+   name shows in the track's port list.
 2. **Does a MIDI track monitor live input through to its output port with channels
    intact when the output channel is Any?** Play the LinnStrument on several channels and
    read *Port Chs*: "2-9" is right, "1" means the live path flattens channels even though
@@ -185,6 +293,10 @@ refresh the text, turn it up to clear).
    straight to the MPE Synth track and read *Track Chs*. If it shows "2-9", the MPC passes
    channels to MPE-declaring plugins and the port detour is unnecessary for instruments
    (set Input to Track).
+   **Answered (2026-11-12): yes, live.** *Track Chs* read "1-8" with the LinnStrument
+   played into the MPE Synth track. Follow-ups: does a *recorded* take play back into
+   the plugin with channels intact; and does a plugin that does not answer `MPE` also
+   get them (build MPE Synth with the SDK's plain entry macro and compare).
 4. **Does Monitor = In on the instrument tracks pass a port's input while the transport
    is stopped and the track is not selected?** The manual says yes.
 5. **Feedback.** Preferences → MIDI / Sync: make sure "MPE Bridge MIDI Out" is not
