@@ -1,0 +1,24 @@
+{
+  "kit": "mono",
+  "pages": [
+    { "name": "ROUTE",
+      "controls": [
+        { "param": "Mode",      "widget": "switch" },
+        { "param": "Voices",    "widget": "slider" },
+        { "param": "First Ch",  "widget": "slider" },
+        { "param": "Master Ch", "widget": "switch" },
+        { "param": "In Bend",   "widget": "slider" },
+        { "param": "Out Bend",  "widget": "slider" },
+        { "param": "Y Dest",    "widget": "slider", "overlay": "menu" },
+        { "param": "Z Dest",    "widget": "slider", "overlay": "menu" }
+      ] },
+    { "name": "STATUS",
+      "controls": [
+        { "param": "Port",      "widget": "slider" },
+        { "param": "Port Chs",  "widget": "slider" },
+        { "param": "Track Chs", "widget": "slider" },
+        { "param": "Input",     "widget": "switch" },
+        { "param": "Panic",     "widget": "switch" }
+      ] }
+  ]
+}

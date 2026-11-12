@@ -1,0 +1,15 @@
+{
+  "name": "MPE Bridge",
+  "manufacturer": "MPE Tools",
+  "version": "1.0.0",
+  "format": "vst2",
+  "kind": "instrument",
+  "uid": "MpBr",
+  "numInputs": 0,
+  "numOutputs": 2,
+  "category": "Synth",
+  "file32": "VST/mpe-bridge-arm32.so",
+  "file64": "VST/mpe-bridge-arm64.so",
+  "description": "Silent MIDI router with its own MIDI ports: plays ordinary MPC instruments with full MPE by dealing notes onto one channel per instrument copy.",
+  "license": "MIT"
+}

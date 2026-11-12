@@ -1,0 +1,30 @@
+{
+  "pages": [
+    { "name": "SOUND",
+      "controls": [
+        { "param": "Cutoff",    "widget": "knob" },
+        { "param": "Resonance", "widget": "knob" },
+        { "param": "Key Track", "widget": "knob" },
+        { "param": "Wave",      "widget": "switch" },
+        { "param": "Attack",    "widget": "fader" },
+        { "param": "Decay",     "widget": "fader" },
+        { "param": "Sustain",   "widget": "fader" },
+        { "param": "Release",   "widget": "fader" },
+        { "param": "Y>Cutoff",  "widget": "knob", "polarity": "bipolar" },
+        { "param": "Z>Cutoff",  "widget": "knob" },
+        { "param": "Z>Level",   "widget": "fader" },
+        { "param": "Vel>Level", "widget": "fader" },
+        { "param": "Volume",    "widget": "fader" }
+      ] },
+    { "name": "MPE",
+      "controls": [
+        { "param": "Bend Range", "widget": "slider" },
+        { "param": "Master Ch",  "widget": "switch" },
+        { "param": "Smoothing",  "widget": "knob" },
+        { "param": "Input",      "widget": "switch" },
+        { "param": "Port",       "widget": "slider" },
+        { "param": "Port Chs",   "widget": "slider" },
+        { "param": "Track Chs",  "widget": "slider" }
+      ] }
+  ]
+}
