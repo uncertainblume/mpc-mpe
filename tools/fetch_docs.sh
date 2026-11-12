@@ -24,3 +24,8 @@ get() {   # file, url
 get "MPC Standalone OS - User Guide - v3.4.pdf" "https://cdn.inmusicbrands.com/akai/MPC3-NI/MPC%20Standalone%20OS%20-%20User%20Guide%20-%20v3.4.pdf"
 get "MPC 3.6 Release Notes.pdf"                 "https://cdn.inmusicbrands.com/Software/36/MPC%203.6%20Firmware%20Update.pdf"
 get "MPC 3.7 Release Notes.pdf"                 "https://cdn.inmusicbrands.com/Software/37/MPC%203.7%20Update%20Release%20Notes.pdf"
+get "MPC 3.10.1 Release Notes.pdf"              "https://cdn.inmusicbrands.com/Software/MPC/MOPN4PCOPEN/MPC%203.10.1%20-%20Release%20Notes.pdf"
+get "MPC 3.10 Release Notes.pdf"                "https://cdn.inmusicbrands.com/Software/M310PCFIN26OCT/MPC%203.10%20Release%20Notes.pdf"
+get "MPC 3.9.1 Release Notes.pdf"               "https://cdn.inmusicbrands.com/Software/MPC/MVSU391APC/MPC%203.9.1%20-%20Release%20Notes.pdf"
+get "MPC 3.9 Release Notes.pdf"                 "https://cdn.inmusicbrands.com/Software/15JM26PSBC/MPC%203.9%20Release%20Notes.pdf"
+get "MPC 3.8 Release Notes.pdf"                 "https://cdn.inmusicbrands.com/Software/AM20P3C8FWUPGZL12/MPC%203.8%20Release%20Notes.pdf"

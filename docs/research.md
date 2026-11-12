@@ -70,7 +70,14 @@ Source: *MPC Standalone OS User Guide v3.4* and the *MPC 3.6 release notes* (Aka
 - MPC 3.6 also introduced "MPCe" pads on the MPC Live III that send X, Y and pressure, but
   only as modulation for drum tracks. It is not MPE and does not touch external MIDI.
 
-Nothing in the user guide or the 3.6 / 3.7 release notes mentions MPE by name.
+Nothing in the user guide or any release notes from 3.6 to 3.10.1 mentions MPE by name.
+
+MPC 3.10.1's Developer panel (Shift + Menu, then Developer in the mode menu) gives a
+shell, switches on the SSH server, shows system logs and manages external plugins. That
+makes the open questions below checkable directly on the device (`aconnect -l` lists
+sequencer ports and their connections; `aseqdump -p <port>` prints what arrives, with
+channels). The *Advanced audio settings* enhancement exposes the block size, which sets
+the timing resolution of port MIDI.
 
 ## What the community measured
 

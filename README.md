@@ -2,10 +2,10 @@
 
 Full MPE on an Akai MPC, using the plugin support that arrived in MPC OS 3.10.1.
 
-**Status: written and desk-tested, not yet run on an MPC.** The routing logic has passing
-tests. The two plugins compile cleanly against Akai's SDK headers but have not been built
-for ARM or loaded on a device from this repository yet. Start with the checklist at the
-end of [docs/research.md](docs/research.md).
+**Status: built and desk-tested, not yet run on an MPC.** Both plugins build for 32-bit
+and 64-bit MPCs and pass the SDK's host simulator; the routing logic has its own passing
+tests. What the MPC itself does with them is still unverified: start with the checklist
+at the end of [docs/research.md](docs/research.md).
 
 ## The problem
 

@@ -15,7 +15,10 @@ Collected 2026-11-12. `tools/fetch_docs.sh` downloads everything marked *fetch* 
 | MPC 3.6 release notes | https://cdn.inmusicbrands.com/Software/36/MPC%203.6%20Firmware%20Update.pdf | *fetch*. Per-event MIDI channel recording, output channel "Any", MPCe pads. |
 | MPC 3.7 release notes | https://cdn.inmusicbrands.com/Software/37/MPC%203.7%20Update%20Release%20Notes.pdf | *fetch*. Nothing MPE-related. |
 | MPC 3 FAQ | https://support.akaipro.com/en/support/solutions/articles/69000857771-mpc3-faq | Links the guide above. |
-| MPC 3.10 / 3.10.1 release notes | not found | The PDF addresses could not be guessed and Akai's pages did not link them on the day. News coverage: [Synth Anatomy](https://synthanatomy.com/2026/11/akai-mpc-os-3-10-1-brings-mpc-plugin-sdk-for-custom-instrument-and-fx-plugins.html), [MusicRadar](https://www.musicradar.com/music-tech/you-can-now-vibe-code-plugins-for-your-mpc-with-the-help-of-akais-official-sdk), [MatrixSynth](https://www.matrixsynth.com/2026/11/akai-open-up-mpc-os-to-vibe-plugins.html). |
+| MPC 3.10.1 release notes | https://cdn.inmusicbrands.com/Software/MPC/MOPN4PCOPEN/MPC%203.10.1%20-%20Release%20Notes.pdf | *fetch*. Enhancements: Plugin SDK, Developer panel (shell, SSH server, external plugin management, `autorun.sh` script runner), advanced audio settings (block size). Nothing about MIDI or MPE. |
+| MPC 3.10 release notes | https://cdn.inmusicbrands.com/Software/M310PCFIN26OCT/MPC%203.10%20Release%20Notes.pdf | *fetch*. MIDI fixes: notes on channels other than 1 no longer hang on stop; Note Repeat respects the input channel; input channel kept when changing track type. |
+| MPC 3.9.1, 3.9, 3.8 release notes | https://cdn.inmusicbrands.com/Software/MPC/MVSU391APC/MPC%203.9.1%20-%20Release%20Notes.pdf , https://cdn.inmusicbrands.com/Software/15JM26PSBC/MPC%203.9%20Release%20Notes.pdf , https://cdn.inmusicbrands.com/Software/AM20P3C8FWUPGZL12/MPC%203.8%20Release%20Notes.pdf | *fetch*. Nothing MPE-related. |
+| Cumulative release notes page | https://www.akaipro.com (Downloads & Support) | Supplied by the project owner; it carries the PDF links above. |
 
 ## Community MPC plugin work
 
