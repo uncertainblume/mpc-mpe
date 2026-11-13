@@ -92,12 +92,12 @@ symlinks enabled (`git clone -c core.symlinks=true`) or copy the folder in.
 
 ## Planned
 
-- **A proper interface for MPE Synth.** Deep patch building and saving from the MPC
-  itself, using its controls and Q-Links, in place of the current two pages of knobs.
-- **Surge on the MPC with full MPE.** Port
-  [SurgeXXL](https://github.com/sunskiefer/SurgeXXL), or another Surge XT port, to the
-  MPC as an MPE instrument. Not yet investigated: its licence, build requirements and
-  CPU cost on MPC hardware.
+- **MPE Synth stays small.** Version 0.2.0 makes it a quick MPE-first performance
+  instrument with pages laid out for the Q-Links. Still open: an XY pad and envelope
+  display (they need hand-written skins), and trying 0.2.0 on the device.
+- **Deep patch building happens in Surge, not here.** A SurgeXXL port with MPE lives in
+  its own repository; the work there is making its Force-oriented interface fit the
+  MPC's Q-Links, presets and instrument structure.
 
 ## Good to know
 

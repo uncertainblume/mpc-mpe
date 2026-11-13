@@ -1,7 +1,7 @@
 {
   "name": "MPE Synth",
   "manufacturer": "MPE Tools",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "format": "vst2",
   "kind": "instrument",
   "uid": "MpSy",
@@ -10,6 +10,6 @@
   "category": "Synth",
   "file32": "VST/mpe-synth-arm32.so",
   "file64": "VST/mpe-synth-arm64.so",
-  "description": "12-voice MPE synthesizer: per-note pitch bend, timbre (CC 74) and pressure, received with channels intact through its own MIDI port.",
+  "description": "12-voice MPE synthesizer: per-note pitch bend, timbre (CC 74) and pressure, with sub, unison spread, noise, drive and stereo width.",
   "license": "MIT"
 }

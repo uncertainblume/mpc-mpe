@@ -7,23 +7,30 @@
 //
 // Signal path per voice:
 //   PolyBLEP oscillator (pitch = note + that note's bend)
+//     + optional second, detuned copy (Spread) + sine one octave down (Sub) + white noise
+//     -> Drive (tanh saturation)
 //     -> low-pass SVF (cutoff + Y amount + Z amount + key tracking)
-//     -> amp ADSR * (velocity blended with that note's pressure)
-//   all voices summed -> master volume -> both outputs.
+//     -> amp ADSR * (velocity blended with that note's pressure, through Z Curve)
+//     -> a fixed place in the stereo field, scaled by Width
+//   all voices summed -> master volume -> soft clip -> left and right.
 //
-// Where the MIDI comes from (the important part on an MPC):
-//   "MPE Synth MIDI In"  the plugin's own MIDI port. Choose it as the MIDI OUTPUT port of the
-//                        track that holds the MPE performance, with the output channel set to
-//                        Any. Channels arrive intact. This is the route that works.
-//   the plugin's track   also listened to. On MPC OS 3.9.1 note-ons arrived on channel 1
-//                        whatever channel they were played on, which breaks MPE; whether
-//                        3.10.1 changes that for a plugin that declares MPE is unknown. The
-//                        STATUS page shows which channels came in by each route.
+// Where the MIDI comes from:
+//   the plugin's track   On MPC 3.10.1 (measured on a Live III) note-ons arrive on their own
+//                        channels, so MPE works with the controller as the track's input.
+//                        On MPC OS 3.9.1 they arrived on channel 1, which breaks MPE.
+//   "MPE Synth MIDI In"  the plugin's own MIDI port, for when the track loses channels:
+//                        choose it as the MIDI OUTPUT port of the track that holds the MPE
+//                        performance, with the output channel set to Any.
 //   Input = Auto uses the port as soon as anything arrives there, and the track until then.
+//   The SETUP page shows which channels came in by each route.
+//
+// Version 0.2.0 appended Sub, Spread, Noise, Drive, Z Curve and Width. Their defaults are
+// neutral, so sounds saved with the first version are unchanged.
 
 #include "mpc_plugin.h"
 #include "dsp/math.h"
 #include "dsp/oscillator.h"
+#include "dsp/noise.h"
 #include "dsp/svf.h"
 #include "dsp/adsr.h"
 #include "dsp/smoother.h"
@@ -45,6 +52,7 @@ public:
         kAttack, kDecay, kSustain, kRelease,
         kBendRange, kMasterCh, kSmooth, kInput,
         kPortStatus, kPortChs, kTrackChs,
+        kSub, kSpread, kNoise, kDrive, kZCurve, kWidth,     // added in 0.2.0
         kNumParams
     };
     enum InputSource { kInAuto = 0, kInTrack = 1, kInPort = 2 };
@@ -55,7 +63,7 @@ public:
         i.name = "MPE Synth";
         i.vendor = "MPE Tools";
         i.uniqueId = MPC_FOURCC('M', 'p', 'S', 'y');   // must match "uid" in plugin.json
-        i.version = 1000;
+        i.version = 200;            // 0.2.0
         i.isInstrument = true;
         i.numInputs = 0;
         i.numOutputs = 2;
@@ -86,6 +94,12 @@ public:
         addParam(readOnly(intParam("portstat", "Port", 0, 1, 0)));
         addParam(readOnly(intParam("portchs",  "Port Chs", 0, 1, 0)));
         addParam(readOnly(intParam("trackchs", "Track Chs", 0, 1, 0)));
+        addParam(floatParam ("sub",      "Sub", 0.0f, 100.0f, 0.0f, "%", 0));          // sine one octave down
+        addParam(floatParam ("spread",   "Spread", 0.0f, 50.0f, 0.0f, "ct", 0));       // detune between two copies; 0 = one oscillator
+        addParam(floatParam ("noise",    "Noise", 0.0f, 100.0f, 0.0f, "%", 0));
+        addParam(floatParam ("drive",    "Drive", 0.0f, 24.0f, 0.0f, "dB", 1));        // saturation before the filter
+        addParam(choiceParam("zcurve",   "Z Curve", {"Soft", "Linear", "Hard"}, 1));   // how pressure maps to its effect
+        addParam(floatParam ("width",    "Width", 0.0f, 100.0f, 0.0f, "%", 0));        // 0 = mono
         if (numParams() != kNumParams) mpc::log("MPESynth: parameter count mismatch");
 
         auto program = [this](const char* name, std::initializer_list<std::pair<int, float>> overrides)
@@ -104,6 +118,14 @@ public:
                                    {kDecay, 350}, {kSustain, 20}, {kRelease, 300}});
         program("Soft Triangle",  {{kWave, 1}, {kCutoff, 2500}, {kReso, 10}, {kZLevel, 60}, {kAttack, 60}, {kRelease, 700},
                                    {kVolume, -8}});
+        // Added in 0.2.0. New programs go at the end: projects store the program number.
+        program("Wide Unison",    {{kSpread, 14}, {kWidth, 80}, {kSub, 25}, {kCutoff, 900}, {kZCutoff, 2.5f}, {kRelease, 500}});
+        program("Driven Reed",    {{kWave, 3}, {kDrive, 14}, {kCutoff, 500}, {kReso, 30}, {kZLevel, 100}, {kVelLevel, 10},
+                                   {kZCurve, 2}, {kZCutoff, 3.5f}, {kAttack, 15}, {kVolume, -14}});
+        program("Breath Flute",   {{kWave, 1}, {kNoise, 18}, {kCutoff, 1800}, {kReso, 15}, {kZLevel, 100}, {kVelLevel, 0},
+                                   {kZCurve, 0}, {kYCutoff, 1.5f}, {kAttack, 40}, {kRelease, 350}, {kWidth, 40}});
+        program("Sub Bass",       {{kWave, 2}, {kSub, 90}, {kCutoff, 300}, {kReso, 20}, {kKeyTrack, 30}, {kDrive, 6},
+                                   {kZCutoff, 3.0f}, {kZLevel, 40}, {kVolume, -12}});
 
         port_.open("MPE Synth", true, false);
     }
@@ -113,7 +135,8 @@ public:
     {
         for (Voice& v : voices_)
         {
-            v.osc.setSampleRate(sampleRate); v.filter.setSampleRate(sampleRate); v.env.setSampleRate(sampleRate);
+            v.osc.setSampleRate(sampleRate); v.osc2.setSampleRate(sampleRate); v.sub.setSampleRate(sampleRate);
+            v.filter.setSampleRate(sampleRate); v.env.setSampleRate(sampleRate);
         }
         volume_.setTime(10.0f, sampleRate);
         volume_.snap(dbToGain(get(kVolume)));
@@ -162,8 +185,9 @@ public:
         float* R = ctx.numOutputs > 1 ? ctx.outputs[1] : nullptr;
         for (int i = 0; i < ctx.numFrames; ++i)
         {
-            L[i] = softClip(L[i] * volume_.process());
-            if (R) R[i] = L[i];
+            const float g = volume_.process();
+            L[i] = softClip(L[i] * g);
+            if (R) R[i] = softClip(R[i] * g);
         }
     }
 
@@ -191,7 +215,9 @@ private:
 
     struct Voice
     {
-        PolyBlepOsc osc;
+        PolyBlepOsc osc, osc2;      // osc2 only runs when Spread is above zero
+        WavetableSine sub;
+        WhiteNoise noise;
         SVF filter;
         ADSR env;
         int ch = 0, note = 60;
@@ -202,11 +228,22 @@ private:
         float yTarget = 0.0f, y = 0.0f;             // -1..1 around the CC 74 centre
         float zTarget = 0.0f, z = 0.0f;             // 0..1
         float levelZ = 0.0f;                        // z smoothed per sample for the amplifier
+        float pan = 0.0f;                           // fixed place of this voice, -1..1, scaled by Width
+        float gainL = 1.0f, gainR = 1.0f;
         uint32_t stamp = 0;
         int ctrl = 0;
     };
 
-    struct Settings { float cutoff, reso, keyTrack, yCut, zCut, zLevel, velLevel, ctlCoeff, ampCoeff; } s_{};
+    struct Settings
+    {
+        float cutoff, reso, keyTrack, yCut, zCut, zLevel, velLevel, ctlCoeff, ampCoeff;
+        float sub, noise, driveGain, width, spreadUp, spreadDown, oscGain;
+        int zCurve;
+        bool spreadOn, driveOn;
+    } s_{};
+
+    // Pressure response: Soft rises quickly then flattens, Hard needs a firm press.
+    static float shapeZ(float z, int curve) { return curve == 0 ? z * (2.0f - z) : (curve == 2 ? z * z : z); }
 
     void updateBlockSettings(mpc::ProcessContext& ctx)
     {
@@ -226,7 +263,17 @@ private:
         volume_.setTarget(dbToGain(get(kVolume)));
         const int wave = getInt(kWave);
         const float a = get(kAttack), d = get(kDecay), su = get(kSustain) * 0.01f, r = get(kRelease);
-        for (Voice& v : voices_) { v.env.set(a, d, su, r); v.osc.setWave(wave); }
+        for (Voice& v : voices_) { v.env.set(a, d, su, r); v.osc.setWave(wave); v.osc2.setWave(wave); }
+
+        s_.sub = get(kSub) * 0.01f; s_.noise = get(kNoise) * 0.01f * 0.5f; s_.width = get(kWidth) * 0.01f;
+        const float cents = get(kSpread);
+        s_.spreadOn = cents > 0.05f;
+        s_.spreadUp = centsToRatio(cents * 0.5f); s_.spreadDown = centsToRatio(-cents * 0.5f);
+        s_.oscGain = s_.spreadOn ? 0.7f : 1.0f;      // two copies sum to about the level of one
+        const float driveDb = get(kDrive);
+        s_.driveOn = driveDb > 0.05f;
+        s_.driveGain = dbToGain(driveDb);
+        s_.zCurve = getInt(kZCurve);
     }
 
     // ----- MIDI -------------------------------------------------------------
@@ -300,7 +347,9 @@ private:
         v.bendTarget = v.bend = zone_.bendSemitones(ch);
         v.yTarget = v.y = timbreToY(zone_.channel(ch).timbre);
         v.zTarget = v.z = (float)zone_.channel(ch).pressure / 127.0f;
-        if (fresh) { v.osc.resetPhase(); v.filter.reset(); v.levelZ = v.z; }
+        if (fresh) { v.osc.resetPhase(); v.osc2.resetPhase(0.37f); v.sub.resetPhase(); v.filter.reset(); v.levelZ = v.z; }
+        // Voices sit at fixed places left and right, further out in turn: -1/3, +1/3, -2/3, +2/3, -1, +1.
+        v.pan = ((pick & 1) ? 1.0f : -1.0f) * (float)((pick / 2) % 3 + 1) * (1.0f / 3.0f);
         v.ctrl = 0;
         v.env.noteOn();
     }
@@ -326,14 +375,15 @@ private:
     // ----- rendering --------------------------------------------------------
     void render(mpc::ProcessContext& ctx, int from, int to)
     {
-        float* out = ctx.outputs[0];
+        float* outL = ctx.outputs[0];
+        float* outR = ctx.numOutputs > 1 ? ctx.outputs[1] : nullptr;
         const int n = to - from;
         if (n <= 0) return;
         for (Voice& v : voices_)
-            if (v.env.isActive()) renderVoice(v, out + from, n);
+            if (v.env.isActive()) renderVoice(v, outL + from, outR ? outR + from : nullptr, n);
     }
 
-    void renderVoice(Voice& v, float* out, int n)
+    void renderVoice(Voice& v, float* outL, float* outR, int n)
     {
         for (int i = 0; i < n; ++i)
         {
@@ -343,16 +393,30 @@ private:
                 v.y    += s_.ctlCoeff * (v.yTarget - v.y);
                 v.z    += s_.ctlCoeff * (v.zTarget - v.z);
                 const float pitch = (float)v.note + v.bend;
-                v.osc.setFrequency(midiToHz(pitch));
-                const float octaves = s_.yCut * v.y + s_.zCut * v.z + s_.keyTrack * (pitch - 60.0f) / 12.0f;
+                const float hz = midiToHz(pitch);
+                if (s_.spreadOn) { v.osc.setFrequency(hz * s_.spreadUp); v.osc2.setFrequency(hz * s_.spreadDown); }
+                else v.osc.setFrequency(hz);
+                v.sub.setFrequency(hz * 0.5f);
+                const float octaves = s_.yCut * v.y + s_.zCut * shapeZ(v.z, s_.zCurve) + s_.keyTrack * (pitch - 60.0f) / 12.0f;
                 v.filter.set(s_.cutoff * std::pow(2.0f, mpc::clamp(octaves, -10.0f, 10.0f)), s_.reso);
+                // sqrt(1 -+ p): both sides are 1 in the middle, so Width 0 is the old mono level.
+                const float p = v.pan * s_.width;
+                v.gainL = std::sqrt(1.0f - p); v.gainR = std::sqrt(1.0f + p);
             }
             v.levelZ += s_.ampCoeff * (v.zTarget - v.levelZ);
             const float env = v.env.process();
             // Loudness: velocity sets the base level; Z>Level crossfades towards pressure.
             const float vel = 1.0f - s_.velLevel + s_.velLevel * v.velGain;
-            const float gain = vel * ((1.0f - s_.zLevel) + s_.zLevel * v.levelZ);
-            out[i] += v.filter.process(v.osc.process(), SVF::Mode::Lowpass) * env * gain * 0.35f;
+            const float gain = vel * ((1.0f - s_.zLevel) + s_.zLevel * shapeZ(v.levelZ, s_.zCurve));
+            float x = v.osc.process();
+            if (s_.spreadOn) x += v.osc2.process();
+            x *= s_.oscGain;
+            if (s_.sub > 0.0f) x += s_.sub * v.sub.process();
+            if (s_.noise > 0.0f) x += s_.noise * v.noise.process();
+            if (s_.driveOn) x = fastTanh(x * s_.driveGain);
+            const float y = v.filter.process(x, SVF::Mode::Lowpass) * env * gain * 0.35f;
+            if (outR) { outL[i] += y * v.gainL; outR[i] += y * v.gainR; }
+            else outL[i] += y;
         }
     }
 
