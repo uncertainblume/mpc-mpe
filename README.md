@@ -2,6 +2,9 @@
 
 Full MPE on an Akai MPC, using the plugin support that arrived in MPC OS 3.10.1.
 
+*Dedicated to Roger Linn and Geert Bevin, creators of MPE and the Linnstrument, and to Wendy
+Carlos, the pioneer without whom none of this would be possible.*
+
 **Status: built and desk-tested, not yet run on an MPC.** Both plugins build for 32-bit
 and 64-bit MPCs and pass the SDK's host simulator; the routing logic has its own passing
 tests. What the MPC itself does with them is still unverified: start with the checklist
