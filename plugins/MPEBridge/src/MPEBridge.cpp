@@ -54,7 +54,7 @@ public:
         i.name = "MPE Bridge";
         i.vendor = "MPE Tools";
         i.uniqueId = MPC_FOURCC('M', 'p', 'B', 'r');   // must match "uid" in plugin.json
-        i.version = 200;            // 0.2.0
+        i.version = 201;            // 0.2.1
         i.isInstrument = true;      // only instruments receive MIDI on the MPC
         i.numInputs = 0;
         i.numOutputs = 2;           // silent, but the MPC expects a stereo instrument
@@ -96,12 +96,15 @@ public:
             for (const auto& o : overrides) v[(size_t)o.first] = o.second;
             addProgram(name, std::move(v));
         };
-        program("8 Voices +-12",    {});
+        // Program 0 is what a new instance starts as. Since 0.2.1 that is the loop-back
+        // cable with light thinning, for recording an MPE take downstream of the bridge.
+        program("Thru Thin 2",      {{kMode, 0}, {kThin, 2}});
         program("Thru (loopback)",  {{kMode, 0}});
         program("4 Voices +-12",    {{kVoices, 4}});
         program("8 Voices +-2",     {{kOutBend, 2}});
         program("8 Voices Y>Mod",   {{kYDest, (float)mpe::Dest::CC1}});
         program("Single + Poly AT", {{kMode, 2}, {kFirstCh, 1}, {kOutBend, 48}, {kZDest, (float)mpe::Dest::PolyPressure}});
+        program("8 Voices +-12",    {});            // was program 0 before 0.2.1
 
         // The port is opened here, on the UI thread, so it exists as soon as the plugin is on a track.
         port_.open("MPE Bridge", true, true);

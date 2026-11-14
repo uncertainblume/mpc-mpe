@@ -371,7 +371,15 @@ Added after reviewing 0.2.0 against the event limit and loop points:
   (bend centre, a CC 74 value, pressure 0 on one channel) reach a note held across the
   loop point like any other message. Z Min keeps that from silencing the note.
 
-None of this has run on the device yet.
+First device run of bridge 0.2.0 (2026-11-14, user's report and the saved project):
+
+- With a bridge in Thru and Thin at 2 to 3, six new takes of 1,900 to 3,900 events hold
+  25 to 39 notes each, and every note in five of them has pressure data (one short take
+  has one note without).
+- Recording works on the bridge's own track. Ordinary recording on an instrument track
+  whose input is "MPE Bridge MIDI Out" records nothing, though Retrospective Record on
+  that same track does capture the take. Not diagnosed.
+- Bridge 0.2.1 therefore starts new instances as "Thru Thin 2".
 
 ## Open questions: check these first on a device
 

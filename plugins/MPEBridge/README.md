@@ -37,3 +37,9 @@ Built with Akai's MPC Plugin SDK (MIT). MIT licensed.
 - Routing: do not give any track that listens to the bridge, or the bridge's own track,
   the input "All Ports"; pick the one port it should hear.
 - Not yet run on an MPC. The first build was labelled 1.0.0; 0.2.0 is newer.
+
+## Version 0.2.1
+
+- A new instance starts as "Thru Thin 2" (mode Thru, Thin 2). The old starting
+  program, "8 Voices +-12", is now the last program. A project saved with program 0
+  selected keeps its own saved settings, but shows the new name.
