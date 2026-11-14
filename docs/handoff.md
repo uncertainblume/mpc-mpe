@@ -147,6 +147,13 @@ work is worth it. Do not assume further development is wanted; ask.
      were present. One observation, but it fits autosave and rules out USB for this
      occurrence. Loaded at the time: two SurgeXXL (one restores 65,795 bytes of state)
      and two bridges. Raw capture: `local/blip/` (not in git).
+   - **Second capture, 2026-11-14 20:37:42 UTC**, after another occurrence: the autosave
+     file had been written at 20:37:19, 23 seconds earlier. The previous write was at
+     20:27:18, so writes are 601 s apart, consistent with a fixed 300 s timer (a write
+     near 20:32 was not caught). Again nothing in the system log for 10 minutes, no MIDI
+     client lost, no app restart, no USB event since 19:17. Two for two, but the exact
+     moment the user saw the glitch is not known, so this is consistent with autosave
+     rather than proof. The decisive test is still autosave off for a session.
    - How to find out: have the user note the clock time when it happens, then compare
      with the modification time of `<project>_[AutoSave]/` on the device; switch autosave
      off in Preferences for a session and see whether it stops; see whether it happens
