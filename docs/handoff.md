@@ -12,6 +12,16 @@ Written 2026-11-14 for the next working session. Evidence and detail are in
 
 Local commits run to `46fc828` plus this file. Nothing has been pushed.
 
+## Start here next session
+
+1. The user wants the work put into git first. Everything is already committed on the
+   local branch `claude/stoic-volta-193u51`; what is missing is the push to GitHub.
+   Confirm with the user, then push.
+2. Ask for the result of the user's own test of concern 8 (Rotate with one instrument
+   copy per channel). The earlier slide glitches came from single copies listening on
+   all channels, so they were not a test of Rotate.
+3. Then the remaining concerns below.
+
 ## Open concerns, most useful first
 
 1. **`Claude_MPEClean` has never been opened.** First check: it loads; Fabric XL and Hype
