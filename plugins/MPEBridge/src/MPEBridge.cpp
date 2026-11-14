@@ -43,7 +43,7 @@ public:
         kPanic,
         kPortChs,       // read-only: channels that have carried notes into "MIDI In"
         kTrackChs,      // read-only: channels that have carried notes in through the track
-        kZStart, kZDepth, kZMin, kYDepth, kThin,    // added in 0.2.0
+        kZStart, kZDepth, kZMin, kYDepth, kThin, kStart,    // added in 0.2.0
         kNumParams
     };
     enum InputSource { kInPort = 0, kInTrack = 1, kInBoth = 2 };
@@ -86,6 +86,7 @@ public:
         addParam(intParam   ("zmin",     "Z Min", 0, 127, 0));
         addParam(intParam   ("ydepth",   "Y Depth", 0, 200, 100, "%"));
         addParam(intParam   ("thin",     "Thin", 0, 8, 0));
+        addParam(choiceParam("start",    "Note Start", {"Clean", "As Sent"}, 0));
         if (numParams() != kNumParams) mpc::log("MPEBridge: parameter count mismatch");
 
         auto program = [this](const char* name, std::initializer_list<std::pair<int, float>> overrides)
@@ -122,6 +123,7 @@ public:
             lastPanic_ = getBool(kPanic);
         }
         router_.configure(readConfig());
+        router_.tick(ctx.numFrames);
 
         const bool panic = getBool(kPanic);
         if (panic && !lastPanic_) router_.panic();
@@ -214,6 +216,7 @@ private:
         c.zDest = (mpe::Dest)getInt(kZDest);
         c.zStart = (mpe::ZStart)getInt(kZStart);
         c.zDepth = getInt(kZDepth); c.zMin = getInt(kZMin); c.yDepth = getInt(kYDepth); c.thin = getInt(kThin);
+        c.cleanStart = getInt(kStart) == 0;
         return c;
     }
 

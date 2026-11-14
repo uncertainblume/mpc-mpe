@@ -24,7 +24,16 @@ Built with Akai's MPC Plugin SDK (MIT). MIT licensed.
 - Notes are released when the MPC resets the plugin or a MIDI device disappears, so
   they no longer hang.
 - A finished note's pressure is not passed on to the next note on its channel.
-- New settings default to the old behaviour except Z Start, which is now Velocity.
+- Thin also works in Thru mode, and about ten times a second the true current values
+  are sent, so a thinned control always ends where the player left it.
+- Note Start = Clean (default): a new note ignores bend and Y left on its channel more
+  than 100 ms earlier. This protects notes whose own starting values were not recorded,
+  and notes that follow a note held across a loop point. Use As Sent for an ordinary
+  keyboard whose wheel you hold while playing new notes.
+- The same note arriving again while still held (a loop wrapping under a held note) ends
+  the first one, so it cannot hang.
+- New settings default to the old behaviour except Z Start (now Velocity) and Note
+  Start (Clean).
 - Routing: do not give any track that listens to the bridge, or the bridge's own track,
   the input "All Ports"; pick the one port it should hear.
 - Not yet run on an MPC. The first build was labelled 1.0.0; 0.2.0 is newer.

@@ -353,6 +353,24 @@ Changes made in response (bridge 0.2.0, synth 0.2.1):
 - Notes are released, not forgotten, when the MPC resets the plugin; and both plugins
   release everything when a hardware MIDI device disappears.
 
+Added after reviewing 0.2.0 against the event limit and loop points:
+
+- The limit is in the MPC's recorder, so a plugin cannot switch buffers or extend it. It
+  can only put fewer events in. Where a take is recorded decides whether Thin helps: a
+  track that records the controller directly stores the raw stream; a track whose input
+  is "MPE Bridge MIDI Out" stores what the bridge sent. So Thin now also works in Thru
+  mode (channels unchanged), for recording a thinned MPE take downstream of a bridge.
+- Thinning could leave a control short of its final value; the bridge now sends the true
+  values about ten times a second. Cost: at most 48 comparisons per block.
+- A note-on repeated while the note is held (a loop wrapping under a held note) used to
+  leave the first one hanging. Fixed.
+- Expression recorded after a loop wraps lands at the start of the clip, before its
+  note. On playback it arrives with no note sounding and used to become the starting bend
+  and Y of the next note on that channel. Note Start = Clean ignores such leftovers.
+- Not fixable in a plugin: the values the MPC itself inserts at the start of a clip
+  (bend centre, a CC 74 value, pressure 0 on one channel) reach a note held across the
+  loop point like any other message. Z Min keeps that from silencing the note.
+
 None of this has run on the device yet.
 
 ## Open questions: check these first on a device

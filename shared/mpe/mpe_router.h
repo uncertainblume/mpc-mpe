@@ -65,12 +65,14 @@ struct RouterConfig
     int  zMin = 0;            // 0..127: the value sent for zero pressure (a floor, so notes cannot go silent)
     int  yDepth = 100;        // percent: how far Y moves its destination around the centre (0..200)
     int  thin = 0;            // 0..8: ignore changes of this many steps or fewer, to send (and record) less data
+    bool cleanStart = true;   // a new note ignores bend and Y left on its channel more than 100 ms earlier
 
     bool operator==(const RouterConfig& o) const
     {
         return mode == o.mode && master == o.master && voices == o.voices && firstChannel == o.firstChannel
             && inBendRange == o.inBendRange && outBendRange == o.outBendRange && yDest == o.yDest && zDest == o.zDest
-            && zStart == o.zStart && zDepth == o.zDepth && zMin == o.zMin && yDepth == o.yDepth && thin == o.thin;
+            && zStart == o.zStart && zDepth == o.zDepth && zMin == o.zMin && yDepth == o.yDepth && thin == o.thin
+            && cleanStart == o.cleanStart;
     }
 };
 
@@ -114,6 +116,23 @@ public:
         for (Slot& s : slots_) s = Slot();
         for (int c = 0; c < 16; ++c) clearCache(c);
         clock_ = 0; numOut_ = 0; dropped_ = 0;
+        clearThru();
+        for (int c = 0; c < 16; ++c) bendTime_[c] = yTime_[c] = 0;
+        now_ = 0; sinceSettle_ = 0;
+    }
+
+    // Call once per audio block with its length. Keeps time for Clean Start and, when Thin
+    // is on, sends the true current values about ten times a second so that a thinned
+    // control always arrives where the player left it. Costs nothing when nothing changed.
+    void tick(int frames)
+    {
+        now_ += (uint64_t)(frames > 0 ? frames : 0);
+        if (cfg_.thin <= 0) return;
+        sinceSettle_ += frames;
+        if (sinceSettle_ < kSettleFrames) return;
+        sinceSettle_ = 0;
+        if (cfg_.mode == Mode::Thru) { for (int c = 0; c < 16; ++c) flushThru(c); }
+        else refreshAllExpression();
     }
 
     // Like hardReset(), but first queues note-offs for everything that is sounding, so a
@@ -125,6 +144,7 @@ public:
         zone_.setMaster(cfg_.master);
         zone_.setForcedMemberRange(cfg_.inBendRange);
         for (int& v : sentPedal_) v = -1;
+        clearThru();
     }
 
     // Release every held note and centre the output channels. Queues the messages.
@@ -142,7 +162,7 @@ public:
         const int d1 = m[1] & 127, d2 = len > 2 ? (m[2] & 127) : 0;
         if (status == 0x90 && d2 > 0) noteChannelMask_ |= (uint16_t)(1u << ch);
 
-        if (cfg_.mode == Mode::Thru) { emit(m, len); return; }
+        if (cfg_.mode == Mode::Thru) { thru(m, len, status, ch, d1, d2); return; }
 
         switch (status)
         {
@@ -195,6 +215,30 @@ private:
     // ---- notes ----
     void noteOn(int ch, int note, int vel)
     {
+        // The same note again on the same channel while it is still held (a sequencer loop
+        // wrapping round under a held note, or an overdub): end the first one, or its
+        // note-off would be used up by the second and the first would hang.
+        for (int i = 0; i < kMaxSlots; ++i)
+            if (slots_[i].held && slots_[i].inCh == ch && slots_[i].note == note)
+            {
+                slots_[i].held = false; slots_[i].offStamp = ++clock_;
+                emit3(0x80 | outChannel(i), note, 64);
+            }
+
+        // Clean Start: bend and Y that were left on this channel long ago belong to an
+        // earlier note (or to one whose start was not recorded), not to this one. A
+        // controller sends a new note's own values just before its note-on.
+        if (cfg_.cleanStart && !zone_.isMaster(ch))
+        {
+            bool channelHeld = false;
+            for (int i = 0; i < kMaxSlots; ++i) channelHeld = channelHeld || (slots_[i].held && slots_[i].inCh == ch);
+            if (!channelHeld)
+            {
+                if (now_ - bendTime_[ch] > (uint64_t)kFreshFrames) zone_.channel(ch).bend = 0;
+                if (now_ - yTime_[ch] > (uint64_t)kFreshFrames) zone_.channel(ch).timbre = 64;
+            }
+        }
+
         const int n = slotCount();
         int pick = -1;
         for (int i = 0; i < n; ++i)                     // the free slot that has been silent longest,
@@ -250,7 +294,7 @@ private:
     // ---- per-note controls ----
     void pitchBend(int ch, int value)
     {
-        zone_.channel(ch).bend = value;
+        zone_.channel(ch).bend = value; bendTime_[ch & 15] = now_;
         const bool all = zone_.isMaster(ch);
         for (int i = 0; i < kMaxSlots; ++i)
             if (slots_[i].held && (all || slots_[i].inCh == ch)) sendBend(i);
@@ -284,7 +328,7 @@ private:
         }
         if (cc == kCcTimbre && !master)
         {
-            zone_.channel(ch).timbre = value;
+            zone_.channel(ch).timbre = value; yTime_[ch & 15] = now_;
             for (int i = 0; i < kMaxSlots; ++i)
                 if (slots_[i].held && slots_[i].inCh == ch) sendY(i);
             return;
@@ -367,6 +411,38 @@ private:
         else emit3(0xB0 | oc, destController(d), value);
     }
 
+    // ---- Thru ----
+    // Everything passes unchanged, except that with Thin on, small changes of pressure,
+    // CC 74 and pitch bend are held back per channel. A held-back value is sent before the
+    // next note-on or note-off on its channel and by tick(), so nothing is lost for good.
+    struct ThruCtl { int sent = -1, want = -1; };
+    void clearThru() { for (int c = 0; c < 16; ++c) { thruZ_[c] = ThruCtl(); thruY_[c] = ThruCtl(); thruBend_[c] = ThruCtl(); } }
+    void flushThru(int c)
+    {
+        if (thruBend_[c].want != thruBend_[c].sent) { thruBend_[c].sent = thruBend_[c].want; emit3(0xE0 | c, thruBend_[c].want & 127, thruBend_[c].want >> 7); }
+        if (thruY_[c].want != thruY_[c].sent) { thruY_[c].sent = thruY_[c].want; emit3(0xB0 | c, kCcTimbre, thruY_[c].want); }
+        if (thruZ_[c].want != thruZ_[c].sent) { thruZ_[c].sent = thruZ_[c].want; emit2(0xD0 | c, thruZ_[c].want); }
+    }
+    // value and the stored values are 0..127, or 0..16383 for pitch bend (centre 8192).
+    bool thruHold(ThruCtl& t, int value, int step, int alwaysA, int alwaysB)
+    {
+        t.want = value;
+        if (t.sent >= 0 && value != alwaysA && value != alwaysB && std::abs(value - t.sent) <= cfg_.thin * step) return true;
+        t.sent = value;
+        return false;
+    }
+    void thru(const uint8_t* m, int len, int status, int ch, int d1, int d2)
+    {
+        if (cfg_.thin > 0)
+        {
+            if (status == 0x90 || status == 0x80) flushThru(ch);
+            else if (status == 0xD0) { if (thruHold(thruZ_[ch], d1, 1, 0, 127)) return; }
+            else if (status == 0xB0 && d1 == kCcTimbre) { if (thruHold(thruY_[ch], d2, 1, 0, 127)) return; }
+            else if (status == 0xE0) { if (thruHold(thruBend_[ch], d1 | (d2 << 7), 16, 8192, 8192)) return; }
+        }
+        emit(m, len);
+    }
+
     // ---- sending ----
     void broadcast3(int status, int d1, int d2)
     {
@@ -394,7 +470,7 @@ private:
         if (c == 0) for (int& v : sentPedal_) v = -1;
     }
 
-    enum { kUnset = 0x7FFFFFFF };
+    enum { kUnset = 0x7FFFFFFF, kFreshFrames = 4410 /* 100 ms at 44.1 kHz */, kSettleFrames = 4096 /* about 93 ms */ };
 
     RouterConfig cfg_;
     Zone zone_;
@@ -407,6 +483,9 @@ private:
     Msg out_[kMaxOut];
     int numOut_ = 0;
     int dropped_ = 0;
+    ThruCtl thruZ_[16], thruY_[16], thruBend_[16];
+    uint64_t now_ = 0, bendTime_[16] = {0}, yTime_[16] = {0};   // in frames
+    int sinceSettle_ = 0;
 };
 
 } // namespace mpe

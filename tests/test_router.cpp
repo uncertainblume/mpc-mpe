@@ -349,6 +349,76 @@ static void testDeviceGoneEvent()
     e.type = kSeqNoteOn; e.data.raw[0] = 24;     CHECK(!isDeviceGoneEvent(e));
 }
 
+// 0.2.0: a sequencer loop wrapping under a held note sends the same note-on again.
+static void testRepeatedNoteOnDoesNotHang()
+{
+    Rig g; RouterConfig c; g.r.configure(c);
+    g.touch(3, 60, 100);
+    g.send(0x90, 3, 60, 90);                                // again, no note-off in between
+    CHECK(g.r.heldCount() == 1);
+    g.send(0x80, 3, 60, 0);
+    CHECK(g.r.heldCount() == 0);
+    int on = 0, off = 0;
+    for (const Msg& m : g.out) { if ((m.d[0] & 0xF0) == 0x90) ++on; if ((m.d[0] & 0xF0) == 0x80) ++off; }
+    CHECK(on == 2 && off == 2);                             // every note-on that went out was ended
+}
+
+// 0.2.0: bend and Y left on a channel long before a note do not colour that note.
+static void testCleanStart()
+{
+    {
+        Rig g; RouterConfig c; g.r.configure(c);
+        g.bend(3, 4000); g.send(0xB0, 3, 74, 110);          // orphans: no note is sounding
+        g.r.tick(44100);                                    // a second passes
+        g.clear();
+        g.send(0x90, 3, 60, 100);
+        CHECK(g.lastBend(1) == 0 || g.lastBend(1) == 99999);
+        CHECK(g.last(0xB0, 1) == nullptr || g.last(0xB0, 1)->d[2] == 64);
+    }
+    {   // sent just before the note-on (what a controller does): used
+        Rig g; RouterConfig c; c.inBendRange = 12; g.r.configure(c);
+        g.r.tick(44100);
+        g.bend(3, 4096); g.send(0xB0, 3, 74, 110);
+        g.r.tick(128);
+        g.send(0x90, 3, 60, 100);
+        CHECK(g.lastBend(1) == 4096);
+        CHECK(g.last(0xB0, 1)->d[2] == 110);
+    }
+    {   // As Sent: old values are kept
+        Rig g; RouterConfig c; c.cleanStart = false; c.inBendRange = 12; g.r.configure(c);
+        g.bend(3, 4096); g.r.tick(44100);
+        g.send(0x90, 3, 60, 100);
+        CHECK(g.lastBend(1) == 4096);
+    }
+}
+
+// 0.2.0: Thin works in Thru mode too and always ends on the true value.
+static void testThinThruAndSettle()
+{
+    Rig g; RouterConfig c; c.mode = Mode::Thru; c.thin = 3; g.r.configure(c);
+    g.send(0x90, 3, 60, 100);
+    g.clear();
+    for (int z = 1; z <= 100; ++z) g.send(0xD0, 3, z);
+    const int n = g.count(0xD0, 3);
+    CHECK(n > 15 && n < 35);
+    const int top = g.last(0xD0, 3)->d[1];
+    g.send(0xD0, 3, top + 1);                               // one step: held back...
+    CHECK(g.last(0xD0, 3)->d[1] == top);
+    g.r.tick(8192); g.collect();                            // ...until the next settle
+    CHECK(g.last(0xD0, 3)->d[1] == top + 1);
+    g.send(0xD0, 3, top + 2);
+    g.send(0x80, 3, 60, 0);                                 // or the note-off
+    CHECK(g.last(0xD0, 3)->d[1] == top + 2);
+    CHECK(g.out.back().d[0] == (0x80 | 3));
+
+    Rig r; RouterConfig d; d.thin = 3; d.zStart = ZStart::Zero; r.r.configure(d);   // Rotate settles too
+    r.touch(3, 60, 100);
+    r.send(0xD0, 3, 50); r.send(0xD0, 3, 52);
+    CHECK(r.last(0xD0, 1)->d[1] == 50);
+    r.r.tick(8192); r.collect();
+    CHECK(r.last(0xD0, 1)->d[1] == 52);
+}
+
 int main()
 {
     testThru();
@@ -364,6 +434,9 @@ int main()
     testThin();
     testResetReleasesNotes();
     testDeviceGoneEvent();
+    testRepeatedNoteOnDoesNotHang();
+    testCleanStart();
+    testThinThruAndSettle();
     if (failures) { std::printf("%d check(s) FAILED\n", failures); return 1; }
     std::printf("router tests: all passed\n");
     return 0;

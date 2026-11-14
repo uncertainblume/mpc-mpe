@@ -18,7 +18,8 @@
         { "param": "Z Depth",   "widget": "slider" },
         { "param": "Z Min",     "widget": "slider" },
         { "param": "Y Depth",   "widget": "slider" },
-        { "param": "Thin",      "widget": "slider" }
+        { "param": "Thin",      "widget": "slider" },
+        { "param": "Note Start", "widget": "switch" }
       ] },
     { "name": "STATUS",
       "controls": [
