@@ -139,6 +139,14 @@ work is worth it. Do not assume further development is wanted; ask.
      while audio runs. For the two MPE Tools plugins that is a few hundred bytes. For
      SurgeXXL it is 50 to 210 KB of text per instance (its README), which could stall
      audio or MIDI for a moment.
+   - **First capture, 2026-11-14 20:28 UTC, within about a minute of the user seeing
+     it:** the autosave file `Claude_MPEClean_[AutoSave]/Claude_MPEClean.xpj` had been
+     written at 20:27:18, 45 seconds earlier. The system log had no entry of any kind in
+     the previous 12 minutes; the last USB event was an hour before; the LinnStrument's
+     MIDI client was present; the MPC app had not restarted; all four plugin MIDI clients
+     were present. One observation, but it fits autosave and rules out USB for this
+     occurrence. Loaded at the time: two SurgeXXL (one restores 65,795 bytes of state)
+     and two bridges. Raw capture: `local/blip/` (not in git).
    - How to find out: have the user note the clock time when it happens, then compare
      with the modification time of `<project>_[AutoSave]/` on the device; switch autosave
      off in Preferences for a session and see whether it stops; see whether it happens
