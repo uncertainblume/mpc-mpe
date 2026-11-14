@@ -81,6 +81,32 @@ Things in this setup worth raising with the user (none verified on the device):
   a reload. The bridges' names are stable while they load in the same order. This belongs
   to the SurgeXXL repository.
 
+## Why the bridge is a plugin track, and how to need fewer tracks
+
+Asked by the user on 2026-11-14; keep for when the routing guide is rewritten.
+
+- The MPC cannot put a plugin on a MIDI track. Its plugin system has instruments (which
+  get MIDI, on a plugin track) and effects (which get none). Anything that processes MIDI
+  has to be an instrument plugin on a plugin track. That is a platform limit.
+- The separate MIDI track feeding the bridge's port is a leftover of MPC OS 3.9.1, where a
+  plugin's track delivered every note on channel 1. On 3.10.1 the track delivers each
+  note's channel, so the bridge can take its input from its own track: track input =
+  LinnStrument, all channels, monitor Merge; bridge Input = Track; record takes on the
+  bridge's track; instruments listen to the bridge's Out port as before. One track fewer
+  per bridge. Believed to be what the user did when recording "in the bridge track"
+  worked, but the Input setting cannot be read from the project file: unconfirmed.
+- Either way the recorded take is the controller's raw stream, before the bridge, so Thin
+  does not reduce what is stored. And the bridge's track must not listen to All Ports.
+- Rejected: running the bridge as a background program on the MPC instead of a plugin.
+  The ports would appear, but it would have no screen or Q-Links, would not be saved with
+  the project, and would mean installing into the system.
+- Possible later feature, not started: one bridge instance serving several instruments
+  in different modes at once (several output ports or channel ranges), so that a project
+  does not need one bridge per mode.
+
+The user plans to live with the current setup for a few days before deciding whether more
+work is worth it. Do not assume further development is wanted; ask.
+
 ## Results since the last notes (user's report, 2026-11-14 evening)
 
 - **Rotate works**: slides in different directions are clean with one Fabric XL copy per
