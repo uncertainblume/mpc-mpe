@@ -386,6 +386,9 @@ First device run of bridge 0.2.0 (2026-11-14, user's report and the saved projec
   whose input is "MPE Bridge MIDI Out" records nothing, though Retrospective Record on
   that same track does capture the take. Not diagnosed.
 - Bridge 0.2.1 therefore starts new instances as "Thru Thin 2".
+- Later the same day: Rotate with four Fabric XL copies on channels 2 to 5 plays slides
+  in different directions cleanly. The glitches reported on 2026-11-12 came from single
+  copies listening on all channels, not from Rotate.
 
 ## Open questions: check these first on a device
 

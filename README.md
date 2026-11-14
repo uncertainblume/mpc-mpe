@@ -5,12 +5,24 @@ Full MPE on an Akai MPC, using the plugin support that arrived in MPC OS 3.10.1.
 *Dedicated to Roger Linn and Geert Bevin, creators of MPE and the Linnstrument, and to Wendy
 Carlos, the pioneer without whom none of this would be possible.*
 
-**Status: both plugins run on an MPC Live III (3.10.1.12).** MPE Synth 0.2.1 plays full
-MPE from a LinnStrument through its own track. MPE Bridge 0.2.1 passes MPE to SurgeXXL
-and records usable takes in Thru mode. Rotate mode with one instrument copy per channel
-has not been tried on the device yet. Both build for 32-bit and 64-bit MPCs and pass the
-SDK's host simulator, and the routing logic has its own passing tests. Open items are in
-[docs/handoff.md](docs/handoff.md); the evidence is in [docs/research.md](docs/research.md).
+**Status: both plugins (version 0.2.2) are in use on an MPC Live III (3.10.1.12), played
+from a LinnStrument.**
+
+- **MPE Bridge, Thru mode:** passes full MPE to an MPE instrument (SurgeXXL) and records
+  usable takes.
+- **MPE Bridge, Rotate mode:** works with one copy of a stock instrument per channel
+  (four Fabric XL copies); slides in different directions are clean.
+- **MPE Synth:** the first build played full MPE through its own track. The 0.2 additions
+  (sub, spread, noise, drive, width, new pages) are installed but have not been reported
+  on yet.
+- **Not yet checked on the device:** the bridge's Single mode, its SHAPE page as drawn,
+  the release of notes when a MIDI device disappears, and CPU cost beyond one figure (two
+  SurgeXXL instances under heavy polyphony exceeded 50%).
+
+Both build for 32-bit and 64-bit MPCs and pass the SDK's host simulator, and the routing
+logic has its own passing tests. Results above are the user's reports from playing, not
+measurements. Open items are in [docs/handoff.md](docs/handoff.md); the evidence is in
+[docs/research.md](docs/research.md).
 
 ## The problem
 

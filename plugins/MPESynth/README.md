@@ -1,6 +1,6 @@
 # MPE Synth
 
-Version 0.2.1. A light 12-voice synthesizer for the MPC in which every note has its own
+Version 0.2.2. A light 12-voice synthesizer for the MPC in which every note has its own
 pitch bend, timbre (CC 74) and pressure. It is meant as a quick MPE-first performance
 instrument, not a deep one.
 
@@ -27,7 +27,8 @@ delivers every note on channel 1, use its own port, "MPE Synth MIDI In", as desc
   projects saved with the first build load unchanged. That first build was labelled
   1.0.0; 0.2.0 is the newer one.
 - Tested: builds for arm32 and arm64 and passes the SDK's host simulator. Version 0.2.0
-  has not been run on an MPC yet and its new programs have not been listened to.
+  is installed on an MPC Live III, but nobody has reported on it yet and its new programs
+  have not been listened to. The first build was played there and did full MPE.
 - Not done: no XY pad or envelope display, no user patch files beyond the MPC's own
   preset save, no release velocity, no effects.
 - CPU: not measured on a device. Spread adds a second oscillator per voice.
