@@ -10,13 +10,15 @@ Written 2026-11-14 for the next working session. Evidence and detail are in
   user's `Mpetestproject` by `tools/mpc_project.py`-style editing.
 - SurgeXXL comes from its own repository and session, not this one.
 
-Local commits run to `46fc828` plus this file. Nothing has been pushed.
+Everything up to this file is pushed to GitHub on the branch
+`claude/stoic-volta-193u51` (2026-11-14). No pull request has been opened. The next
+revision counts as a new version.
 
 ## Start here next session
 
-1. The user wants the work put into git first. Everything is already committed on the
-   local branch `claude/stoic-volta-193u51`; what is missing is the push to GitHub.
-   Confirm with the user, then push.
+1. Check `git status` and `git log origin/claude/stoic-volta-193u51..HEAD`: the branch
+   was pushed clean on 2026-11-14, so anything there is new. Give the plugins new
+   version numbers for the next round of changes.
 2. Ask for the result of the user's own test of concern 8 (Rotate with one instrument
    copy per channel). The earlier slide glitches came from single copies listening on
    all channels, so they were not a test of Rotate.
