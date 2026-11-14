@@ -1,7 +1,7 @@
 {
   "name": "MPE Synth",
   "manufacturer": "MPE Tools",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "format": "vst2",
   "kind": "instrument",
   "uid": "MpSy",

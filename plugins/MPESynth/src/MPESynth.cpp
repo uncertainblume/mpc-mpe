@@ -63,7 +63,7 @@ public:
         i.name = "MPE Synth";
         i.vendor = "MPE Tools";
         i.uniqueId = MPC_FOURCC('M', 'p', 'S', 'y');   // must match "uid" in plugin.json
-        i.version = 200;            // 0.2.0
+        i.version = 201;            // 0.2.1
         i.isInstrument = true;
         i.numInputs = 0;
         i.numOutputs = 2;
@@ -166,6 +166,9 @@ public:
             if (!portSeen_) { portSeen_ = true; if (input == kInAuto) allNotesOff(); }   // hand over from the track cleanly
             handleMidi(m, len);
         }
+
+        // A hardware MIDI device vanished (unplugged, or dropped off USB): release its notes.
+        if (port_.takeDeviceGone()) allNotesOff();
 
         // MIDI from the track: sample accurate.
         const bool useTrack = input == kInTrack || (input == kInAuto && !portSeen_);

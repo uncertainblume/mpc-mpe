@@ -1,6 +1,6 @@
 # MPE Synth
 
-Version 0.2.0. A light 12-voice synthesizer for the MPC in which every note has its own
+Version 0.2.1. A light 12-voice synthesizer for the MPC in which every note has its own
 pitch bend, timbre (CC 74) and pressure. It is meant as a quick MPE-first performance
 instrument, not a deep one.
 
@@ -20,6 +20,8 @@ delivers every note on channel 1, use its own port, "MPE Synth MIDI In", as desc
 - MPE: lower zone or no master channel; bend range from RPN 0 or set by hand (default
   48); sustain pedal; channel pressure or poly aftertouch for Z; smoothing for the 7-bit
   controls.
+- 0.2.1: releases all notes when a hardware MIDI device disappears (a controller
+  dropping off USB used to leave notes stuck).
 - Nine built-in programs. The last four use the 0.2.0 additions.
 - Compatibility: the 0.2.0 parameters were appended with neutral defaults, so sounds and
   projects saved with the first build load unchanged. That first build was labelled

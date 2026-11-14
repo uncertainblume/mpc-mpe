@@ -15,3 +15,16 @@ Setup and controls: [docs/routing-guide.md](../../docs/routing-guide.md), recipe
 - CPU: negligible. The cost is in the instrument copies it feeds.
 
 Built with Akai's MPC Plugin SDK (MIT). MIT licensed.
+
+## Version 0.2.0
+
+- SHAPE page: Z Start (the pressure a note has before any arrives: Last, Velocity or
+  Zero), Z Depth, Z Min (a floor for pressure), Y Depth, and Thin (send fewer bend, Y and
+  Z messages).
+- Notes are released when the MPC resets the plugin or a MIDI device disappears, so
+  they no longer hang.
+- A finished note's pressure is not passed on to the next note on its channel.
+- New settings default to the old behaviour except Z Start, which is now Velocity.
+- Routing: do not give any track that listens to the bridge, or the bridge's own track,
+  the input "All Ports"; pick the one port it should hear.
+- Not yet run on an MPC. The first build was labelled 1.0.0; 0.2.0 is newer.

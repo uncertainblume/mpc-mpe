@@ -267,6 +267,72 @@ Also seen on this device:
 - The MPC application also owns a client `"JUCE"` with *Virtual MIDI Input/Output 1–2*
   ports wired to itself. Not investigated.
 
+## Recording and playback findings, 2026-11-14
+
+From the user's report after an evening of recording through MPE Bridge into SurgeXXL and
+Vintage Pro, plus the device's log and the saved test project (`.xpj` files are a short
+text header followed by gzip-compressed JSON, and can be read off the device).
+
+Reported by the user:
+
+- Played live, MPE works. Recorded straight onto an instrument track, takes come back
+  "flattened". Recorded on the bridge's track and played through it, more expression
+  survives, but some notes play back very quiet, unpredictably, and not according to the
+  velocity shown in the piano roll.
+- Now and then the MPC shows its loading display for a moment; audio glitches and some
+  notes stay stuck until played again.
+
+Found:
+
+- **The stuck notes line up with the LinnStrument dropping off USB.** The kernel log has
+  it failing with `endpoint halt` and disconnecting twice (Nov 13 02:07 and 21:41),
+  returning seconds to minutes later. Notes held at that moment never get a note-off.
+  That is a USB-level fault (cable, port or power), separate from MPE. Two software gaps
+  made it worse and are fixed in 0.2.0 / 0.2.1: the bridge forgot sounding notes without
+  releasing them when the MPC suspended and resumed it, and nothing reacted to a device
+  disappearing.
+- **The MPC stores MPE settings per plugin program**: `sendMPE` (false on every plugin
+  track in the project), `mpeXEnabled`, `mpeYEnabled`, `mpeAftertouchEnabled`,
+  `mpeChannelMode`, `mpeFirstNoteChannel`, `mpeLastNoteChannel`. Notes also carry
+  per-note modifier slots. Akai's documentation says nothing about these that a web
+  search could find. Whether switching "send MPE" on (wherever the MPC shows it) makes
+  recorded takes play back as MPE into a plugin is the most promising untested lead for
+  the flattening.
+- **Recorded expression does keep its channel.** The one clip in the saved project holds
+  pitch bend (parameter 128), CC 74 and channel pressure (129) as automation events with
+  per-event channels, on two channels. It holds exactly 512 events and no notes; whether
+  512 is a limit, and where the notes went, is not known.
+- **The MPC adds "invented" events at the start of a clip**: pitch bend centre, a CC 74
+  value and pressure 0 on a channel.
+- **Several tracks listened to "All Ports"**, including a second MPE Bridge on Monitor
+  Merge. All Ports includes "MPE Bridge MIDI Out", so those tracks receive the controller
+  and the bridge's re-dealt copy of it at once, on different channels. For an MPE
+  instrument that mixes one note's pressure into another's. This is a likely contributor
+  to notes at the wrong level; it has not been isolated.
+
+Not determined: why specific notes go quiet on playback. The candidates are the mix-up
+above, pressure data that the sequencer does not play back for some notes, and the
+bridge's old habit of starting each note from whatever pressure its channel last had.
+0.2.0 removes the last one and makes the bridge tolerant of the second (Z Start =
+Velocity). The decisive test is to capture "MPE Bridge MIDI Out" with `arecordmidi` once
+while playing live and once while the take plays back, and compare.
+
+Changes made in response (bridge 0.2.0, synth 0.2.1):
+
+- Z Start (Last / Velocity / Zero, default Velocity): what pressure a note has before any
+  arrives for it. With Velocity, a note that gets no pressure on playback is as loud as
+  it was struck, and the piano roll's velocity means something again.
+- Z Depth, Z Min and Y Depth: scale how far pressure and Y move their destinations, and
+  give pressure a floor. This is the bridge's version of the per-target depth controls on
+  Vintage Pro's MPE page, which could not be examined (no public documentation found;
+  the SDK gives no access to Akai's own plugins).
+- Thin: skip small changes of bend, Y and Z, to send and record less data.
+- A finished note's pressure is no longer inherited by the next note on its channel.
+- Notes are released, not forgotten, when the MPC resets the plugin; and both plugins
+  release everything when a hardware MIDI device disappears.
+
+None of this has run on the device yet.
+
 ## Open questions: check these first on a device
 
 Status after the findings above: question 1 is answered except for seeing the name in a

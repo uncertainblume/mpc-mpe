@@ -11,6 +11,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <vector>
 
 #include "mpe/alsa_seq.h"
@@ -260,6 +261,94 @@ static void testSeqEventConversion()
     CHECK(!midiToSeqEvent(clock, ev));
 }
 
+// 0.2.0: what a note starts with when no pressure has arrived for it, and how Y and Z are scaled.
+static void testPressureStartAndShaping()
+{
+    {   // Velocity (the default): a note with no pressure data is as loud as it was struck.
+        Rig g; RouterConfig c; g.r.configure(c);
+        g.send(0x90, 3, 60, 100); g.collect();
+        const Msg* z = g.last(0xD0, 1);
+        CHECK(z != nullptr && z->d[1] == 100);
+        g.send(0xD0, 3, 40);                               // real pressure takes over
+        CHECK(g.last(0xD0, 1)->d[1] == 40);
+    }
+    {   // Last: the finished note's pressure is not inherited by the next note on that channel.
+        Rig g; RouterConfig c; c.zStart = ZStart::Last; c.voices = 1; g.r.configure(c);
+        g.send(0x90, 3, 60, 100); g.send(0xD0, 3, 90); g.send(0x80, 3, 60, 0);
+        g.clear();
+        g.send(0x90, 3, 62, 100);
+        const Msg* z = g.last(0xD0, 1);
+        CHECK(z != nullptr && z->d[1] == 0);
+    }
+    {   // Zero
+        Rig g; RouterConfig c; c.zStart = ZStart::Zero; g.r.configure(c);
+        g.send(0x90, 3, 60, 100);
+        CHECK(g.last(0xD0, 1) != nullptr && g.last(0xD0, 1)->d[1] == 0);
+    }
+    {   // Z Min is a floor; Z Depth scales what is above it.
+        Rig g; RouterConfig c; c.zStart = ZStart::Zero; c.zMin = 50; g.r.configure(c);
+        g.send(0x90, 3, 60, 100);
+        CHECK(g.last(0xD0, 1)->d[1] == 50);
+        g.send(0xD0, 3, 127);
+        CHECK(g.last(0xD0, 1)->d[1] == 127);
+        RouterConfig h = c; h.zDepth = 50; g.r.configure(h); g.collect();
+        CHECK(g.last(0xD0, 1)->d[1] >= 88 && g.last(0xD0, 1)->d[1] <= 89);   // halfway between 50 and 127
+    }
+    {   // Y Depth scales around the centre and never leaves 0..127.
+        Rig g; RouterConfig c; c.yDepth = 50; g.r.configure(c);
+        g.touch(3, 60, 100, 64);
+        g.send(0xB0, 3, 74, 127);
+        CHECK(g.last(0xB0, 1)->d[2] == 96);
+        RouterConfig h = c; h.yDepth = 200; g.r.configure(h); g.collect();
+        CHECK(g.last(0xB0, 1)->d[2] == 127);
+        g.send(0xB0, 3, 74, 0);
+        CHECK(g.last(0xB0, 1)->d[2] == 0);
+    }
+}
+
+// 0.2.0: Thin sends fewer messages but still reaches the ends and starts notes exactly.
+static void testThin()
+{
+    Rig g; RouterConfig c; c.zStart = ZStart::Zero; c.thin = 3; g.r.configure(c);
+    g.touch(3, 60, 100);
+    g.clear();
+    for (int z = 1; z <= 127; ++z) g.send(0xD0, 3, z);
+    const int n = g.count(0xD0, 1);
+    CHECK(n > 20 && n < 40);                                // about a quarter of 127
+    CHECK(g.last(0xD0, 1)->d[1] == 127);                    // the top is always reached
+    for (int z = 126; z >= 0; --z) g.send(0xD0, 3, z);
+    CHECK(g.last(0xD0, 1)->d[1] == 0);                      // and the bottom
+    g.clear();
+    g.bend(3, 5); CHECK(g.count(0xE0, 1) == 0);             // a tiny bend is skipped
+    g.bend(3, 4000); CHECK(g.count(0xE0, 1) == 1);
+    g.bend(3, 0); CHECK(g.lastBend(1) == 0);                // centre always sent
+}
+
+// 0.2.0: a reset in the middle of a note releases it instead of forgetting it.
+static void testResetReleasesNotes()
+{
+    Rig g; RouterConfig c; g.r.configure(c);
+    g.touch(3, 60, 100); g.touch(4, 64, 100);
+    g.clear();
+    g.r.resetAndRelease(); g.collect();
+    CHECK(g.count(0x80, 1) == 1 && g.count(0x80, 2) == 1);
+    CHECK(g.r.heldCount() == 0);
+    g.clear();
+    g.send(0x80, 3, 60, 0);                                 // the late note-off does nothing
+    CHECK(g.out.empty());
+}
+
+// 0.2.0: which sequencer announcements mean "a hardware device has gone".
+static void testDeviceGoneEvent()
+{
+    SeqEvent e; std::memset(&e, 0, sizeof(e));
+    e.type = kSeqPortExit; e.data.raw[0] = 24;   CHECK(isDeviceGoneEvent(e));      // a USB controller's port
+    e.type = kSeqClientExit; e.data.raw[0] = 24; CHECK(isDeviceGoneEvent(e));
+    e.type = kSeqPortExit; e.data.raw[0] = 130;  CHECK(!isDeviceGoneEvent(e));     // another plugin's port
+    e.type = kSeqPortExit; e.data.raw[0] = 0;    CHECK(!isDeviceGoneEvent(e));
+    e.type = kSeqNoteOn; e.data.raw[0] = 24;     CHECK(!isDeviceGoneEvent(e));
+}
+
 int main()
 {
     testThru();
@@ -271,6 +360,10 @@ int main()
     testReconfigureAndPanic();
     testDenseStream();
     testSeqEventConversion();
+    testPressureStartAndShaping();
+    testThin();
+    testResetReleasesNotes();
+    testDeviceGoneEvent();
     if (failures) { std::printf("%d check(s) FAILED\n", failures); return 1; }
     std::printf("router tests: all passed\n");
     return 0;

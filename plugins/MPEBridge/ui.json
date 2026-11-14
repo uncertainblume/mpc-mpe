@@ -12,6 +12,14 @@
         { "param": "Y Dest",    "widget": "slider", "overlay": "menu" },
         { "param": "Z Dest",    "widget": "slider", "overlay": "menu" }
       ] },
+    { "name": "SHAPE",
+      "controls": [
+        { "param": "Z Start",   "widget": "switch" },
+        { "param": "Z Depth",   "widget": "slider" },
+        { "param": "Z Min",     "widget": "slider" },
+        { "param": "Y Depth",   "widget": "slider" },
+        { "param": "Thin",      "widget": "slider" }
+      ] },
     { "name": "STATUS",
       "controls": [
         { "param": "Port",      "widget": "slider" },

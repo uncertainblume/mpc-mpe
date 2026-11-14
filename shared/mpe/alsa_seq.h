@@ -55,6 +55,8 @@ enum : uint8_t
 {
     kSeqNoteOn = 6, kSeqNoteOff = 7, kSeqKeyPress = 8, kSeqController = 10, kSeqPgmChange = 11,
     kSeqChanPress = 12, kSeqPitchBend = 13,
+    kSeqClientExit = 61, kSeqPortExit = 64,          // announcements from the System client
+    kSeqSystemClient = 0, kSeqAnnouncePort = 1, kSeqFirstUserClient = 128,
     kSeqQueueDirect = 253, kSeqAddrUnknown = 253, kSeqAddrSubscribers = 254
 };
 enum : unsigned
@@ -63,6 +65,16 @@ enum : unsigned
     kSeqTypeMidiGeneric = 1u << 1, kSeqTypeApplication = 1u << 20,
     kSeqOpenDuplex = 3, kSeqNonblock = 1
 };
+
+// True for the System client's announcement that a kernel (hardware) MIDI client or one
+// of its ports has gone: a controller was unplugged or dropped off USB. Whatever it was
+// holding down will never get its note-off.
+inline bool isDeviceGoneEvent(const SeqEvent& ev)
+{
+    if (ev.type != kSeqClientExit && ev.type != kSeqPortExit) return false;
+    const uint8_t client = ev.data.raw[0];              // snd_seq_addr: client, port
+    return client != kSeqSystemClient && client < kSeqFirstUserClient;
+}
 
 // ---- conversion between sequencer events and MIDI bytes --------------------
 // Returns the message length (2 or 3), or 0 for events that are not channel voice messages.
@@ -139,6 +151,8 @@ public:
             api().close(seq); inPort_ = outPort_ = -1; name_[0] = 0; return false;
         }
         seq_ = seq;
+        // Listen for devices leaving, so held notes can be released (see takeDeviceGone()).
+        if (wantInput && api().connectFrom != nullptr) api().connectFrom(seq, inPort_, kSeqSystemClient, kSeqAnnouncePort);
         return true;
 #else
         (void)clientName; (void)wantInput; (void)wantOutput;
@@ -170,6 +184,7 @@ public:
             const int r = api().input(seq_, &ev);
             if (r == -28) continue;            // -ENOSPC: the kernel queue overran and was emptied
             if (r < 0 || ev == nullptr) return 0;   // -EAGAIN: nothing waiting
+            if (isDeviceGoneEvent(*ev)) { deviceGone_ = true; continue; }
             const int n = seqEventToMidi(*ev, m);
             if (n > 0) return n;               // anything else (subscriptions, clock, sysex) is skipped
         }
@@ -178,6 +193,10 @@ public:
 #endif
         return 0;
     }
+
+    // True once after a hardware MIDI device has disappeared. Only meaningful for a port
+    // with an input, and only updated by read(). Call from the same thread as read().
+    bool takeDeviceGone() { const bool g = deviceGone_; deviceGone_ = false; return g; }
 
     // Sends one channel voice message to whoever is subscribed to "MIDI Out" (the MPC).
     bool send(const uint8_t* m)
@@ -208,6 +227,7 @@ private:
         int (*input)(void*, SeqEvent**) = nullptr;
         int (*outputDirect)(void*, SeqEvent*) = nullptr;
         int (*close)(void*) = nullptr;
+        int (*connectFrom)(void*, int, int, int) = nullptr;   // optional
 
         bool load()
         {
@@ -220,6 +240,7 @@ private:
             *(void**)(&input)        = dlsym(h, "snd_seq_event_input");
             *(void**)(&outputDirect) = dlsym(h, "snd_seq_event_output_direct");
             *(void**)(&close)        = dlsym(h, "snd_seq_close");
+            *(void**)(&connectFrom)  = dlsym(h, "snd_seq_connect_from");
             state = (open && setName && createPort && input && outputDirect && close) ? 1 : -1;
             return state == 1;
         }
@@ -230,6 +251,7 @@ private:
 
     void* seq_ = nullptr;
     int inPort_ = -1, outPort_ = -1;
+    bool deviceGone_ = false;
     char name_[64] = {0};
 };
 

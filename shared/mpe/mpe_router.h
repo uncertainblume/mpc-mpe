@@ -26,6 +26,7 @@
 #define MPE_ROUTER_H
 
 #include <cmath>
+#include <cstdlib>
 #include <cstdint>
 #include <cstring>
 
@@ -37,6 +38,12 @@ enum class Mode { Thru = 0, Rotate = 1, Single = 2 };
 
 // Where a per-note control is sent on the output side.
 enum class Dest { Off = 0, ChannelPressure, PolyPressure, CC1, CC2, CC11, CC74, kCount };
+
+// What pressure a new note starts with, before the controller sends any for it.
+//   Last      the pressure last seen on the note's channel (the plain MPE reading)
+//   Velocity  the note's velocity, so a note that never gets pressure data is as loud as it was struck
+//   Zero      silence until pressure arrives
+enum class ZStart { Last = 0, Velocity = 1, Zero = 2 };
 
 inline int destController(Dest d)
 {
@@ -53,11 +60,17 @@ struct RouterConfig
     int  outBendRange = 12;   // semitones the receiving instruments bend at full pitch bend
     Dest yDest = Dest::CC74;
     Dest zDest = Dest::ChannelPressure;
+    ZStart zStart = ZStart::Velocity;
+    int  zDepth = 100;        // percent: how far pressure moves its destination (0..200)
+    int  zMin = 0;            // 0..127: the value sent for zero pressure (a floor, so notes cannot go silent)
+    int  yDepth = 100;        // percent: how far Y moves its destination around the centre (0..200)
+    int  thin = 0;            // 0..8: ignore changes of this many steps or fewer, to send (and record) less data
 
     bool operator==(const RouterConfig& o) const
     {
         return mode == o.mode && master == o.master && voices == o.voices && firstChannel == o.firstChannel
-            && inBendRange == o.inBendRange && outBendRange == o.outBendRange && yDest == o.yDest && zDest == o.zDest;
+            && inBendRange == o.inBendRange && outBendRange == o.outBendRange && yDest == o.yDest && zDest == o.zDest
+            && zStart == o.zStart && zDepth == o.zDepth && zMin == o.zMin && yDepth == o.yDepth && thin == o.thin;
     }
 };
 
@@ -79,6 +92,8 @@ public:
         n.firstChannel = clampInt(n.firstChannel, 0, 15);
         if (n.mode == Mode::Rotate && n.firstChannel + n.voices > 16) n.voices = 16 - n.firstChannel;
         if (n.outBendRange < 1) n.outBendRange = 1;
+        n.zDepth = clampInt(n.zDepth, 0, 200); n.yDepth = clampInt(n.yDepth, 0, 200);
+        n.zMin = clampInt(n.zMin, 0, 127); n.thin = clampInt(n.thin, 0, 8);
         if (n == cfg_) return;
         const bool remap = n.mode != cfg_.mode || n.voices != cfg_.voices || n.firstChannel != cfg_.firstChannel
                         || n.master != cfg_.master;
@@ -99,6 +114,17 @@ public:
         for (Slot& s : slots_) s = Slot();
         for (int c = 0; c < 16; ++c) clearCache(c);
         clock_ = 0; numOut_ = 0; dropped_ = 0;
+    }
+
+    // Like hardReset(), but first queues note-offs for everything that is sounding, so a
+    // host that suspends and resumes the plugin mid-note does not leave notes hanging.
+    void resetAndRelease()
+    {
+        releaseAll(true);
+        zone_.reset();
+        zone_.setMaster(cfg_.master);
+        zone_.setForcedMemberRange(cfg_.inBendRange);
+        for (int& v : sentPedal_) v = -1;
     }
 
     // Release every held note and centre the output channels. Queues the messages.
@@ -181,10 +207,12 @@ private:
         }
         Slot& s = slots_[pick];
         s.held = true; s.inCh = ch; s.note = note; s.onStamp = ++clock_;
-        s.z = zone_.channel(ch).pressure; s.sentPoly = -1;
+        s.z = cfg_.zStart == ZStart::Velocity ? vel : (cfg_.zStart == ZStart::Zero ? 0 : zone_.channel(ch).pressure);
+        s.sentPoly = -1;
 
         // Per-note controls first, then the note, so it starts at the right pitch and timbre.
-        sendBend(pick); sendY(pick); sendZ(pick);
+        // These are sent exactly, whatever the Thin setting.
+        sendBend(pick, true); sendY(pick, true); sendZ(pick, true);
         emit3(0x90 | outChannel(pick), note, vel);
     }
 
@@ -197,7 +225,12 @@ private:
             const bool wasFocus = cfg_.mode == Mode::Single && i == focusSlot();
             s.held = false; s.offStamp = ++clock_;
             emit3(0x80 | outChannel(i), note, vel);
-            if (wasFocus) { const int f = focusSlot(); if (f >= 0) { sendBend(f); sendY(f); } }
+            if (wasFocus) { const int f = focusSlot(); if (f >= 0) { sendBend(f, true); sendY(f, true); } }
+            // The pressure of a finished note must not become the starting pressure of the
+            // next note on that channel.
+            bool channelStillHeld = false;
+            for (int k = 0; k < kMaxSlots; ++k) channelStillHeld = channelStillHeld || (slots_[k].held && slots_[k].inCh == ch);
+            if (!channelStillHeld) zone_.channel(ch).pressure = 0;
             return;
         }
     }
@@ -273,48 +306,62 @@ private:
     void refreshAllExpression()
     {
         for (int i = 0; i < kMaxSlots; ++i)
-            if (slots_[i].held) { sendBend(i); sendY(i); sendZ(i); }
+            if (slots_[i].held) { sendBend(i, true); sendY(i, true); sendZ(i, true); }
     }
 
-    void sendBend(int slot)
+    // exact = false lets the Thin setting skip small changes.
+    void sendBend(int slot, bool exact = false)
     {
         if (!ownsChannelControls(slot)) return;
         const int oc = outChannel(slot);
         const float semis = zone_.bendSemitones(slots_[slot].inCh);
         const int v = clampInt((int)std::lround(semis * 8192.0f / (float)cfg_.outBendRange), -8192, 8191);
         if (v == sentBend_[oc]) return;
+        // Thin: 16 pitch-bend units per step (about 2 cents at a 12 semitone range). Centre is always sent.
+        if (!exact && cfg_.thin > 0 && v != 0 && sentBend_[oc] != kUnset && std::abs(v - sentBend_[oc]) <= cfg_.thin * 16) return;
         sentBend_[oc] = v;
         emit3(0xE0 | oc, (v + 8192) & 127, (v + 8192) >> 7);
     }
 
-    void sendY(int slot)
+    // Y around its centre (64), scaled by Y Depth.
+    int shapeY(int y) const { return clampInt(64 + ((y - 64) * cfg_.yDepth + (y >= 64 ? 50 : -50)) / 100, 0, 127); }
+    // Z from Z Min upwards, scaled by Z Depth: zero pressure gives Z Min, full pressure at 100% gives 127.
+    int shapeZ(int z) const { return clampInt(cfg_.zMin + (z * cfg_.zDepth * (127 - cfg_.zMin) + 6350) / 12700, 0, 127); }
+
+    void sendY(int slot, bool exact = false)
     {
         Dest d = cfg_.yDest;
         if (cfg_.mode == Mode::Single && d == Dest::ChannelPressure) d = Dest::PolyPressure;
-        sendControl(slot, d, zone_.channel(slots_[slot].inCh).timbre);
+        sendControl(slot, d, shapeY(zone_.channel(slots_[slot].inCh).timbre), exact);
     }
 
-    void sendZ(int slot)
+    void sendZ(int slot, bool exact = false)
     {
         Dest d = cfg_.zDest;
         if (cfg_.mode == Mode::Single && d == Dest::ChannelPressure) d = Dest::PolyPressure;   // keep it per note
-        sendControl(slot, d, slots_[slot].z);
+        sendControl(slot, d, shapeZ(slots_[slot].z), exact);
     }
 
-    void sendControl(int slot, Dest d, int value)
+    // Thin: skip a change of cfg_.thin steps or fewer, except to the ends of the range.
+    bool thinned(int last, int value, bool exact) const
+    {
+        return !exact && cfg_.thin > 0 && last >= 0 && value != 0 && value != 127 && std::abs(value - last) <= cfg_.thin;
+    }
+
+    void sendControl(int slot, Dest d, int value, bool exact)
     {
         if (d == Dest::Off) return;
         const int oc = outChannel(slot);
         if (d == Dest::PolyPressure)
         {
-            if (slots_[slot].sentPoly == value) return;
+            if (slots_[slot].sentPoly == value || thinned(slots_[slot].sentPoly, value, exact)) return;
             slots_[slot].sentPoly = value;
             emit3(0xA0 | oc, slots_[slot].note, value);
             return;
         }
         if (!ownsChannelControls(slot)) return;
         int& last = sentCtl_[oc][(int)d];
-        if (last == value) return;
+        if (last == value || thinned(last, value, exact)) return;
         last = value;
         if (d == Dest::ChannelPressure) emit2(0xD0 | oc, value);
         else emit3(0xB0 | oc, destController(d), value);

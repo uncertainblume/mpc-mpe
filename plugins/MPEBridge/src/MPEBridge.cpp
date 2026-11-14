@@ -43,6 +43,7 @@ public:
         kPanic,
         kPortChs,       // read-only: channels that have carried notes into "MIDI In"
         kTrackChs,      // read-only: channels that have carried notes in through the track
+        kZStart, kZDepth, kZMin, kYDepth, kThin,    // added in 0.2.0
         kNumParams
     };
     enum InputSource { kInPort = 0, kInTrack = 1, kInBoth = 2 };
@@ -53,7 +54,7 @@ public:
         i.name = "MPE Bridge";
         i.vendor = "MPE Tools";
         i.uniqueId = MPC_FOURCC('M', 'p', 'B', 'r');   // must match "uid" in plugin.json
-        i.version = 1000;
+        i.version = 200;            // 0.2.0
         i.isInstrument = true;      // only instruments receive MIDI on the MPC
         i.numInputs = 0;
         i.numOutputs = 2;           // silent, but the MPC expects a stereo instrument
@@ -80,6 +81,11 @@ public:
         addParam(readOnly(boolParam("panic", "Panic", false)));
         addParam(readOnly(intParam("portchs",  "Port Chs", 0, 1, 0)));
         addParam(readOnly(intParam("trackchs", "Track Chs", 0, 1, 0)));
+        addParam(choiceParam("zstart",   "Z Start", {"Last", "Velocity", "Zero"}, (int)mpe::ZStart::Velocity));
+        addParam(intParam   ("zdepth",   "Z Depth", 0, 200, 100, "%"));
+        addParam(intParam   ("zmin",     "Z Min", 0, 127, 0));
+        addParam(intParam   ("ydepth",   "Y Depth", 0, 200, 100, "%"));
+        addParam(intParam   ("thin",     "Thin", 0, 8, 0));
         if (numParams() != kNumParams) mpc::log("MPEBridge: parameter count mismatch");
 
         auto program = [this](const char* name, std::initializer_list<std::pair<int, float>> overrides)
@@ -100,17 +106,21 @@ public:
         port_.open("MPE Bridge", true, true);
     }
 
-    void reset() override
-    {
-        router_.hardReset();
-        for (Sent& s : sent_) s = Sent();
-        lastPanic_ = getBool(kPanic);
-    }
+    // Called on resume and after a state load, possibly while process() runs on another
+    // thread. The work is done at the start of the next block: sounding notes are released
+    // first, so a suspend and resume in the middle of a note cannot leave it hanging.
+    void reset() override { resetPending_.store(true, std::memory_order_release); }
 
     void process(mpc::ProcessContext& ctx) override
     {
         ++block_;
         router_.clearOutput();
+        if (resetPending_.exchange(false, std::memory_order_acq_rel))
+        {
+            router_.resetAndRelease();
+            for (Sent& s : sent_) s = Sent();
+            lastPanic_ = getBool(kPanic);
+        }
         router_.configure(readConfig());
 
         const bool panic = getBool(kPanic);
@@ -134,6 +144,10 @@ public:
             uint8_t m[3];
             for (int n = 0; n < kMaxPortEventsPerBlock && port_.read(m) > 0; ++n) {}   // keep the queue empty
         }
+
+        // A hardware MIDI device vanished (unplugged, or dropped off USB): its note-offs will
+        // never come, so release everything.
+        if (port_.takeDeviceGone()) router_.panic();
 
         // 2. What the MPC handed us through the track.
         for (int i = 0; i < ctx.numMidiEvents; ++i)
@@ -198,6 +212,8 @@ private:
         c.outBendRange = getInt(kOutBend);
         c.yDest = (mpe::Dest)getInt(kYDest);
         c.zDest = (mpe::Dest)getInt(kZDest);
+        c.zStart = (mpe::ZStart)getInt(kZStart);
+        c.zDepth = getInt(kZDepth); c.zMin = getInt(kZMin); c.yDepth = getInt(kYDepth); c.thin = getInt(kThin);
         return c;
     }
 
@@ -226,6 +242,7 @@ private:
     uint32_t sentPos_ = 0, block_ = 0;
     bool lastPanic_ = false;
     std::atomic<unsigned> portMask_{0}, trackMask_{0};
+    std::atomic<bool> resetPending_{true};
 };
 
 MPE_PLUGIN_ENTRY(MPEBridge)
