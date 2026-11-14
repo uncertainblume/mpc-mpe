@@ -99,6 +99,30 @@ Things in this setup worth raising with the user (none verified on the device):
    instrument in the stand-in host over SSH (see research.md, "How it was tested") or
    read the MPC's CPU meter per configuration. Surge's cost belongs to the SurgeXXL
    repository.
+1a. **The brief loading display with an audio glitch is unexplained. An earlier claim in
+   these notes and in research.md, that it was the LinnStrument dropping off USB, is
+   withdrawn.** The user's correction (2026-11-14): unplugging the LinnStrument does not
+   show that display; the display looks like the one shown when creating a project; it
+   has happened since with no possible change of connection; and the last couple of
+   times no note hung. The two USB dropouts in the log were real, but matching them to
+   the display was an assumption.
+   - The user's hypothesis is the autosave. Supporting fact: `MPC.settings` has
+     `AutoSaveEnabled = 1` and `AutoSaveTimeout = 300` (seconds). Nothing in the system
+     log marks an autosave, so the log alone cannot confirm it.
+   - A mechanism worth testing, not established: saving asks every plugin for its state
+     while audio runs. For the two MPE Tools plugins that is a few hundred bytes. For
+     SurgeXXL it is 50 to 210 KB of text per instance (its README), which could stall
+     audio or MIDI for a moment.
+   - How to find out: have the user note the clock time when it happens, then compare
+     with the modification time of `<project>_[AutoSave]/` on the device; switch autosave
+     off in Preferences for a session and see whether it stops; see whether it happens
+     in a project with no SurgeXXL loaded.
+   - What to watch when it happens: whether MIDI input routing changes or drops, whether
+     notes hang, and whether the bridges are suspended and resumed (0.2.0 and later
+     release their notes in that case).
+   - The goal is that it does not disturb playing. If autosave is the cause, the options
+     are a longer interval, saving only while stopped (if the MPC offers it), or making
+     the plugin's state cheaper to produce.
 2. **Routing is still confusing to the user.** The explanation above is the one that
    landed in conversation; `docs/routing-guide.md` predates everything learned on the
    device and should be rewritten around it, with the template as the worked example.
@@ -119,9 +143,10 @@ Things in this setup worth raising with the user (none verified on the device):
    MIDI device disappears; release on plugin reset. The user offered screenshots of SHAPE
    and of Vintage Pro's MPE page (per-target depth controls, which Z Depth / Y Depth
    only approximate).
-8. **The LinnStrument dropped off USB twice** on Nov 13 (`endpoint halt`). Not seen again
-   on Nov 14. Hardware or cable; it shares the onboard hub that logged an error in the
-   separate boot-hang investigation (`local/boot-hang/`, not in git).
+8. **The LinnStrument dropped off USB twice** on Nov 13 (`endpoint halt`). Hardware or
+   cable; it shares the onboard hub that logged an error in the separate boot-hang
+   investigation (`local/boot-hang/`, not in git). This is NOT the explanation for the
+   brief "loading" display: see concern 1a.
 9. **Small things.** MPE Synth: Master Ch should be None for a LinnStrument that plays
    notes on channel 1; no XY pad or envelope display. The README's "install from a USB
    drive or SD card" is untested (removable drives are mounted `noexec`). The template

@@ -284,6 +284,12 @@ Reported by the user:
 
 Found:
 
+- *Correction, 2026-11-14 evening: the user reports that unplugging the LinnStrument does
+  not produce the brief loading display, and that the display has occurred with no
+  change of connection. The link drawn in the next item between that display and the USB
+  dropouts was an assumption and is withdrawn; the dropouts themselves are in the log.
+  The display is unexplained (autosave every 300 s is the user's hypothesis); see
+  handoff.md, concern 1a.*
 - **The stuck notes line up with the LinnStrument dropping off USB.** The kernel log has
   it failing with `endpoint halt` and disconnecting twice (Nov 13 02:07 and 21:41),
   returning seconds to minutes later. Notes held at that moment never get a note-off.
