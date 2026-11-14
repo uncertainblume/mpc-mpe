@@ -2,13 +2,15 @@
 
 Full MPE on an Akai MPC, using the plugin support that arrived in MPC OS 3.10.1.
 
-**Status: MPE Synth plays full MPE on an MPC Live III (3.10.1.12); MPE Bridge passes MPE
-to stock instruments but glitches on slides in different directions.** Both plugins build for 32-bit and 64-bit MPCs and pass the SDK's host
-simulator; the routing logic has its own passing tests. On the device, MPE Synth on a
-track played from a LinnStrument received each note on its own channel *through the
-track*, without needing its port. The ports also work: the MPC picks them up and channels
-pass through intact. See "Device findings" and the remaining checklist at the end of
-[docs/research.md](docs/research.md).
+*Dedicated to Roger Linn and Geert Bevin, creators of MPE and the Linnstrument, and to Wendy
+Carlos, the pioneer without whom none of this would be possible.*
+
+**Status: both plugins run on an MPC Live III (3.10.1.12).** MPE Synth 0.2.1 plays full
+MPE from a LinnStrument through its own track. MPE Bridge 0.2.1 passes MPE to SurgeXXL
+and records usable takes in Thru mode. Rotate mode with one instrument copy per channel
+has not been tried on the device yet. Both build for 32-bit and 64-bit MPCs and pass the
+SDK's host simulator, and the routing logic has its own passing tests. Open items are in
+[docs/handoff.md](docs/handoff.md); the evidence is in [docs/research.md](docs/research.md).
 
 ## The problem
 
