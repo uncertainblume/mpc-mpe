@@ -12,9 +12,9 @@ Written 2026-11-14, last updated that evening, for the next working session. Evi
   user's `Mpetestproject` and since modified by the user on the device.
 - SurgeXXL comes from its own repository and session, not this one.
 
-Everything up to this file is pushed to GitHub on the branch
-`claude/stoic-volta-193u51` (2026-11-14). No pull request has been opened. The next
-revision counts as a new version.
+Everything up to this file is on GitHub (`uncertainblume/mpc-mpe`), on `main` and on the
+branch `claude/stoic-volta-193u51`, which point at the same commit. The next revision
+counts as a new version.
 
 ## Start here next session
 
