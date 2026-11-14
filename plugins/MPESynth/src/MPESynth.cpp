@@ -63,7 +63,7 @@ public:
         i.name = "MPE Synth";
         i.vendor = "MPE Tools";
         i.uniqueId = MPC_FOURCC('M', 'p', 'S', 'y');   // must match "uid" in plugin.json
-        i.version = 201;            // 0.2.1
+        i.version = 202;            // 0.2.2
         i.isInstrument = true;
         i.numInputs = 0;
         i.numOutputs = 2;

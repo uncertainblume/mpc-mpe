@@ -43,3 +43,9 @@ Built with Akai's MPC Plugin SDK (MIT). MIT licensed.
 - A new instance starts as "Thru Thin 2" (mode Thru, Thin 2). The old starting
   program, "8 Voices +-12", is now the last program. A project saved with program 0
   selected keeps its own saved settings, but shows the new name.
+
+## Version 0.2.2
+
+- Every choice control is now the MPC's name-and-value bar with a menu, so each one
+  shows its name (Mode, Master Ch and the others were unlabelled segment buttons).
+  No change to sound or MIDI handling.

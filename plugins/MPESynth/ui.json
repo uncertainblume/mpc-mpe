@@ -16,12 +16,12 @@
         { "param": "Release",   "widget": "fader" },
         { "param": "Volume",    "widget": "fader" },
         { "param": "Width",     "widget": "fader" },
-        { "param": "Z Curve",   "widget": "switch" },
+        { "param": "Z Curve",   "widget": "slider", "overlay": "menu" },
         { "param": "Smoothing", "widget": "knob" }
       ] },
     { "name": "OSC",
       "controls": [
-        { "param": "Wave",      "widget": "switch" },
+        { "param": "Wave",      "widget": "slider", "overlay": "menu" },
         { "param": "Spread",    "widget": "knob" },
         { "param": "Sub",       "widget": "fader" },
         { "param": "Noise",     "widget": "fader" }
@@ -29,8 +29,8 @@
     { "name": "SETUP",
       "controls": [
         { "param": "Bend Range", "widget": "slider" },
-        { "param": "Master Ch",  "widget": "switch" },
-        { "param": "Input",      "widget": "switch" },
+        { "param": "Master Ch",  "widget": "slider", "overlay": "menu" },
+        { "param": "Input",      "widget": "slider", "overlay": "menu" },
         "empty",
         { "param": "Port",       "widget": "slider" },
         { "param": "Port Chs",   "widget": "slider" },

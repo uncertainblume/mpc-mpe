@@ -54,7 +54,7 @@ public:
         i.name = "MPE Bridge";
         i.vendor = "MPE Tools";
         i.uniqueId = MPC_FOURCC('M', 'p', 'B', 'r');   // must match "uid" in plugin.json
-        i.version = 201;            // 0.2.1
+        i.version = 202;            // 0.2.2
         i.isInstrument = true;      // only instruments receive MIDI on the MPC
         i.numInputs = 0;
         i.numOutputs = 2;           // silent, but the MPC expects a stereo instrument

@@ -3,10 +3,10 @@
   "pages": [
     { "name": "ROUTE",
       "controls": [
-        { "param": "Mode",      "widget": "switch" },
+        { "param": "Mode",      "widget": "slider", "overlay": "menu" },
         { "param": "Voices",    "widget": "slider" },
         { "param": "First Ch",  "widget": "slider" },
-        { "param": "Master Ch", "widget": "switch" },
+        { "param": "Master Ch", "widget": "slider", "overlay": "menu" },
         { "param": "In Bend",   "widget": "slider" },
         { "param": "Out Bend",  "widget": "slider" },
         { "param": "Y Dest",    "widget": "slider", "overlay": "menu" },
@@ -14,20 +14,20 @@
       ] },
     { "name": "SHAPE",
       "controls": [
-        { "param": "Z Start",   "widget": "switch" },
+        { "param": "Z Start",   "widget": "slider", "overlay": "menu" },
         { "param": "Z Depth",   "widget": "slider" },
         { "param": "Z Min",     "widget": "slider" },
         { "param": "Y Depth",   "widget": "slider" },
         { "param": "Thin",      "widget": "slider" },
-        { "param": "Note Start", "widget": "switch" }
+        { "param": "Note Start", "widget": "slider", "overlay": "menu" }
       ] },
     { "name": "STATUS",
       "controls": [
         { "param": "Port",      "widget": "slider" },
         { "param": "Port Chs",  "widget": "slider" },
         { "param": "Track Chs", "widget": "slider" },
-        { "param": "Input",     "widget": "switch" },
-        { "param": "Panic",     "widget": "switch" }
+        { "param": "Input",     "widget": "slider", "overlay": "menu" },
+        { "param": "Panic",     "widget": "slider", "overlay": "menu" }
       ] }
   ]
 }

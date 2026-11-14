@@ -37,3 +37,9 @@ channels 1 to 8, for example), set Master Ch to None on the SETUP page; otherwis
 on channel 1 use the master channel's narrow bend range and bend every other note.
 
 Built with Akai's MPC Plugin SDK (MIT). MIT licensed.
+
+## Version 0.2.2
+
+- Every choice control is now the MPC's name-and-value bar with a menu, so each one
+  shows its name (Mode, Master Ch and the others were unlabelled segment buttons).
+  No change to sound or MIDI handling.
