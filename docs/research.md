@@ -310,7 +310,29 @@ Found:
   instrument that mixes one note's pressure into another's. This is a likely contributor
   to notes at the wrong level; it has not been isolated.
 
-Not determined: why specific notes go quiet on playback. The candidates are the mix-up
+**Recorded takes lose expression part-way while notes carry on** (from the autosaved
+project, read with `tools/mpc_project.py`):
+
+- A two-bar clip on the bridge's track holds 502 events. From about beat 3 of bar 1 to
+  the bar line there is no bend, CC 74 or pressure at all, though four notes start in
+  that stretch; expression resumes exactly on the bar line. Read as a loop that started
+  recording at bar 2 and wrapped, that is expression stopping once roughly 500 events
+  were stored, with notes still being recorded. Those four notes have no pressure data.
+- Another clip holds exactly 512 events, all expression and no notes; a third holds 3887
+  events with 20 notes. So there appear to be event-count limits near 512 and near 4096
+  (the user knows the latter as Retrospective Record's size); which recording method
+  gives which is not established. The MPC binary has a `RetrospectiveRecordSize`
+  setting; it is not set in the settings file.
+- A note with no recorded pressure played through bridge 1.0.0 started from its
+  channel's last pressure, usually 0: silent or very quiet in any sound where pressure
+  drives level, whatever its velocity. This matches the reported quiet notes.
+
+So the quiet notes are largely explained: the take ran out of room for expression. Two
+of the 0.2.0 changes address it directly: Z Start = Velocity gives such notes their
+struck level, and Thin makes the room last several times longer. Still not determined:
+whether the All Ports mix-up above also plays a part.
+
+Superseded by the above: "Not determined: why specific notes go quiet on playback." The candidates are the mix-up
 above, pressure data that the sequencer does not play back for some notes, and the
 bridge's old habit of starting each note from whatever pressure its channel last had.
 0.2.0 removes the last one and makes the bridge tolerant of the second (Z Start =
