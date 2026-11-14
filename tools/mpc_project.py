@@ -93,13 +93,14 @@ def show(address, name):
         for e in ev:
             if e["type"] == 1 and e["automation"]["parameter"] == 129:
                 press[e["channel"]].append(e["time"])
+        has_press = bool(press)
         bare = sum(1 for n in notes
                    if not any(n["time"] < t <= n["time"] + n["note"]["length"] for t in press[n["channel"]]))
         channels = sorted({n["channel"] + 1 for n in notes})
-        if len(channels) == 1 and not press:
+        if len(channels) == 1 and not has_press:
             continue                                  # an ordinary one-channel clip
         print("  %-28s %5d events, %3d notes on channels %s, %d notes with no pressure data"
-              % (cname, len(ev), len(notes), channels, bare if press else len(notes)))
+              % (cname, len(ev), len(notes), channels, bare if has_press else len(notes)))
 
 
 def copy(address, name, new, send_mpe, inputs):
