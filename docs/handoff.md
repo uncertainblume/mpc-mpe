@@ -5,7 +5,8 @@ Written 2026-11-14, last updated that evening, for the next working session. Evi
 
 ## On the MPC now (Live III, 3.10.1.12, internal drive)
 
-- MPE Bridge 0.2.1 and MPE Synth 0.2.1, in `/nvme/VST2 Plugins`. Build with
+- MPE Bridge 0.2.2 and MPE Synth 0.2.2, in `/nvme/VST2 Plugins` (installed 2026-11-14;
+  0.2.2 only relabels the choice controls, and the user has not yet looked at it). Build with
   `tools/build.sh`, test with `tools/run_tests.sh`, install with
   `python3 third_party/mpc-plugin-builder-sdk/tools/mpc_remote.py 192.168.1.20 --drive 1 update plugins/<Name> --yes`.
 - Template project `Claude_MPEClean` in `/nvme/MPC Documents/Projects`, made from the
