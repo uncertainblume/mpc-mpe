@@ -27,6 +27,7 @@
 // notes onto N channels and converts bend range / Y / Z for the instruments; Single puts
 // everything on one channel with pressure as polyphonic aftertouch.
 
+#include <algorithm>
 #include "mpc_plugin.h"
 #include "mpe/alsa_seq.h"
 #include "mpe/mpe_entry.h"
@@ -44,6 +45,7 @@ public:
         kPortChs,       // read-only: channels that have carried notes into "MIDI In"
         kTrackChs,      // read-only: channels that have carried notes in through the track
         kZStart, kZDepth, kZMin, kYDepth, kThin, kStart,    // added in 0.2.0
+        kOutPorts,                                          // added in 0.3.0
         kNumParams
     };
     enum InputSource { kInPort = 0, kInTrack = 1, kInBoth = 2 };
@@ -54,7 +56,7 @@ public:
         i.name = "MPE Bridge";
         i.vendor = "MPE Tools";
         i.uniqueId = MPC_FOURCC('M', 'p', 'B', 'r');   // must match "uid" in plugin.json
-        i.version = 202;            // 0.2.2
+        i.version = 300;            // 0.3.0
         i.isInstrument = true;      // only instruments receive MIDI on the MPC
         i.numInputs = 0;
         i.numOutputs = 2;           // silent, but the MPC expects a stereo instrument
@@ -87,6 +89,7 @@ public:
         addParam(intParam   ("ydepth",   "Y Depth", 0, 200, 100, "%"));
         addParam(intParam   ("thin",     "Thin", 0, 8, 0));
         addParam(choiceParam("start",    "Note Start", {"Clean", "As Sent"}, 0));
+        addParam(choiceParam("outports", "Out Ports", {"Single", "Per Voice"}, 0));
         if (numParams() != kNumParams) mpc::log("MPEBridge: parameter count mismatch");
 
         auto program = [this](const char* name, std::initializer_list<std::pair<int, float>> overrides)
@@ -105,6 +108,7 @@ public:
         program("8 Voices Y>Mod",   {{kYDest, (float)mpe::Dest::CC1}});
         program("Single + Poly AT", {{kMode, 2}, {kFirstCh, 1}, {kOutBend, 48}, {kZDest, (float)mpe::Dest::PolyPressure}});
         program("8 Voices +-12",    {});            // was program 0 before 0.2.1
+        program("4 Voices Own Ports", {{kVoices, 4}, {kOutPorts, 1}});
 
         // The port is opened here, on the UI thread, so it exists as soon as the plugin is on a track.
         port_.open("MPE Bridge", true, true);
@@ -165,12 +169,19 @@ public:
             router_.handle(e.data, e.size);
         }
 
-        // 3. Send.
+        // 3. Send. In Rotate with "Per Voice" ports, each voice's messages leave by a port of its
+        // own ("Ch 2 Out", ...), so the receiving track needs no channel filter and cannot hear
+        // its neighbours.
+        const bool perVoice = getInt(kOutPorts) == 1 && getInt(kMode) == (int)mpe::Mode::Rotate;
+        const int firstCh = getInt(kFirstCh) - 1, voices = getInt(kVoices);
+        if (perVoice) port_.ensureChannelPorts(firstCh, std::min(voices, 16 - firstCh));
         const bool remember = input != kInPort;
         for (int i = 0; i < router_.outputCount(); ++i)
         {
             const mpe::Msg& o = router_.output(i);
-            if (port_.hasOutput()) port_.send(o.d);
+            const int oc = o.d[0] & 15;
+            if (perVoice && mpe::isVoiceChannel(oc, firstCh, voices) && port_.sendChannel(oc, o.d)) {}
+            else if (port_.hasOutput()) port_.send(o.d);
             else
             {
                 mpc::MidiEvent e; e.sampleOffset = 0; e.size = o.len;
