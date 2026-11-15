@@ -419,6 +419,16 @@ static void testThinThruAndSettle()
     CHECK(r.last(0xD0, 1)->d[1] == 52);
 }
 
+static void testIsVoiceChannel()
+{
+    CHECK(mpe::isVoiceChannel(1, 1, 4));         // voices own channels 2..5 (indexes 1..4)
+    CHECK(mpe::isVoiceChannel(4, 1, 4));
+    CHECK(!mpe::isVoiceChannel(5, 1, 4));
+    CHECK(!mpe::isVoiceChannel(0, 1, 4));
+    CHECK(mpe::isVoiceChannel(15, 14, 8));       // voices are clamped to what fits: 16 - 14 = 2
+    CHECK(!mpe::isVoiceChannel(13, 14, 8));
+}
+
 int main()
 {
     testThru();
@@ -437,6 +447,7 @@ int main()
     testRepeatedNoteOnDoesNotHang();
     testCleanStart();
     testThinThruAndSettle();
+    testIsVoiceChannel();
     if (failures) { std::printf("%d check(s) FAILED\n", failures); return 1; }
     std::printf("router tests: all passed\n");
     return 0;

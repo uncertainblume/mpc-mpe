@@ -118,6 +118,14 @@ inline bool midiToSeqEvent(const uint8_t* m, SeqEvent& ev)
     }
 }
 
+// Rotate with one output port per channel: is `channel` one of the voice channels (voice k
+// owns channel firstChannel + k)? `voices` is clamped the same way the router clamps it.
+inline bool isVoiceChannel(int channel, int firstChannel, int voices)
+{
+    if (voices > 16 - firstChannel) voices = 16 - firstChannel;
+    return channel >= firstChannel && channel < firstChannel + voices;
+}
+
 // ---- the port ---------------------------------------------------------------
 class AlsaMidiPort
 {
@@ -166,6 +174,7 @@ public:
         if (seq_ != nullptr) api().close(seq_);
 #endif
         seq_ = nullptr; inPort_ = outPort_ = -1;
+        for (int& p : chPort_) p = -1;
     }
 
     bool isOpen() const { return seq_ != nullptr; }
@@ -198,25 +207,57 @@ public:
     // with an input, and only updated by read(). Call from the same thread as read().
     bool takeDeviceGone() { const bool g = deviceGone_; deviceGone_ = false; return g; }
 
+    // Makes sure each of the channels first .. first+count-1 (0-based) has its own output port,
+    // named after the channel as the user numbers it: "Ch 2 Out". Ports are only ever added
+    // (until the plugin closes), and the MPC picks up new ports a few seconds after they appear.
+    void ensureChannelPorts(int first, int count)
+    {
+#if MPE_HAVE_DLOPEN
+        if (seq_ == nullptr) return;
+        const unsigned type = kSeqTypeMidiGeneric | kSeqTypeApplication;
+        for (int c = first; c < first + count && c < 16; ++c)
+        {
+            if (c < 0 || chPort_[c] >= 0) continue;
+            char nm[32]; std::snprintf(nm, sizeof(nm), "Ch %d Out", c + 1);
+            chPort_[c] = api().createPort(seq_, nm, kSeqCapRead | kSeqCapSubsRead, type);
+        }
+#else
+        (void)first; (void)count;
+#endif
+    }
+    bool hasChannelPort(int c) const { return c >= 0 && c < 16 && chPort_[c] >= 0; }
+
+    // Sends to the port of output channel c (see ensureChannelPorts). False if it has none.
+    bool sendChannel(int c, const uint8_t* m)
+    {
+        if (!hasChannelPort(c)) return false;
+        return sendFrom(chPort_[c], m);
+    }
+
     // Sends one channel voice message to whoever is subscribed to "MIDI Out" (the MPC).
     bool send(const uint8_t* m)
     {
-#if MPE_HAVE_DLOPEN
         if (!hasOutput()) return false;
+        return sendFrom(outPort_, m);
+    }
+
+private:
+    bool sendFrom(int port, const uint8_t* m)
+    {
+#if MPE_HAVE_DLOPEN
         SeqEvent ev;
         if (!midiToSeqEvent(m, ev)) return false;
         ev.queue = kSeqQueueDirect;
-        ev.source.port = (uint8_t)outPort_;
+        ev.source.port = (uint8_t)port;
         ev.dest.client = kSeqAddrSubscribers;
         ev.dest.port = kSeqAddrUnknown;
         return api().outputDirect(seq_, &ev) >= 0;
 #else
-        (void)m;
+        (void)port; (void)m;
         return false;
 #endif
     }
 
-private:
 #if MPE_HAVE_DLOPEN
     struct Api
     {
@@ -251,6 +292,7 @@ private:
 
     void* seq_ = nullptr;
     int inPort_ = -1, outPort_ = -1;
+    int chPort_[16] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
     bool deviceGone_ = false;
     char name_[64] = {0};
 };

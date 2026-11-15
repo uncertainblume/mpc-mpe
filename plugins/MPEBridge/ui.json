@@ -10,7 +10,8 @@
         { "param": "In Bend",   "widget": "slider" },
         { "param": "Out Bend",  "widget": "slider" },
         { "param": "Y Dest",    "widget": "slider", "overlay": "menu" },
-        { "param": "Z Dest",    "widget": "slider", "overlay": "menu" }
+        { "param": "Z Dest",    "widget": "slider", "overlay": "menu" },
+        { "param": "Out Ports", "widget": "slider", "overlay": "menu" }
       ] },
     { "name": "SHAPE",
       "controls": [

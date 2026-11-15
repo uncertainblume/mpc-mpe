@@ -1,7 +1,7 @@
 {
   "name": "MPE Bridge",
   "manufacturer": "MPE Tools",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "format": "vst2",
   "kind": "instrument",
   "uid": "MpBr",

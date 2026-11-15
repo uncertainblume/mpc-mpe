@@ -51,3 +51,20 @@ Built with Akai's MPC Plugin SDK (MIT). MIT licensed.
 - Every choice control is now the MPC's name-and-value bar with a menu, so each one
   shows its name (Mode, Master Ch and the others were unlabelled segment buttons).
   No change to sound or MIDI handling.
+
+## Version 0.3.0
+
+- New setting **Out Ports** (ROUTE page): Single or Per Voice. It only matters in Rotate mode.
+  - Single (the default, as before): every voice leaves by "MIDI Out", one channel per voice.
+  - Per Voice: each voice leaves by a port of its own, named after the channel it carries:
+    "Ch 2 Out", "Ch 3 Out" and so on. The MPC lists them with the plugin's name, for example
+    "MPE Bridge 2 Ch 3 Out". Point each instrument track's MIDI input at one of these ports
+    (channel Any, or the same channel) and the track hears only its own voice.
+  - Why: through a shared port the MPC's channel filter does not seem to keep a track from
+    hearing its neighbours' bends and pressure, which showed up as slides in several
+    directions glitching. Separate ports are routed by the MPC before any channel filter.
+- The ports appear when the setting is switched on (the MPC notices new ports a few seconds
+  later). They are named after the channel, not the voice, so changing First Ch later adds
+  ports for the new channels and leaves the old ones silent until the plugin is closed.
+- New program "4 Voices Own Ports" (Rotate, 4 voices, Out Ports Per Voice).
+- Not yet checked on a device when this was written.
