@@ -6,7 +6,7 @@
 Records the LinnStrument and the bridge output in back-to-back windows (see capture_midi.py),
 samples the busiest MPC thread every 3 s, and appends one line per window to the log. Quiet windows (no notes)
 are logged but ignored. Exits with status 1 at the first window where a controller note did
-not reach the bridge output, or where one MPC thread reached 85% of a core; otherwise runs until --hours.
+not reach the bridge output, (CPU is only logged: this kernel's per-thread accounting is tick based and can read over 100%); otherwise runs until --hours.
 Read-only on the device (writes only /tmp/watch.mid).
 """
 import argparse, os, re, subprocess, sys, time
@@ -53,8 +53,8 @@ def main():
         chs = {}
         for e in got: chs[e[2] + 1] = chs.get(e[2] + 1, 0) + 1
         log("notes in %d, out %d %s, missing %d, out channels %s, busiest audio thread peaked at %d%%" % (len(inn), len(got), per_bridge, len(lost), dict(sorted(chs.items())), maxbusy))
-        if lost or (inn and maxbusy >= 85):
-            log("PROBLEM: missing notes (s into window, note) %s" % lost[:20] if lost else "PROBLEM: an audio thread was at %d%% of a core" % maxbusy)
+        if lost:
+            log("PROBLEM: missing notes (s into window, note) %s" % lost[:20])
             sys.exit(1)
     log("finished without a problem")
 
