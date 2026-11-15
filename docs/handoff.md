@@ -206,3 +206,13 @@ work is worth it. Do not assume further development is wanted; ask.
 ## Rapid-play check of Rotate, 2026-11-15
 
 Saved template (`MPETemplate`, 02:52 UTC): bridge 2 is Rotate, 4 voices, first channel 2, Input Port; instrument copies listen on channels 2 to 5. That matches. A capture with `tools/capture_midi.py` (LinnStrument port vs "MPE Bridge 2" MIDI Out) while the user played fast: 82 of 82 controller notes appeared at the bridge output within 50 ms, spread over channels 2 to 5. So the MPC hop and the bridge lost nothing in that run; if keys still do not sound, look downstream (instrument copies, voice stealing beyond 4 notes, CPU). Not measured: the bridge's input port cannot be recorded (write-only), and CPU was sampled once mid-run at under 5% MPC, with the idle-looking load, so it says little about the heavy two-SurgeXXL case.
+
+### Findings after the rapid-play report, 2026-11-15 evening (supersedes the CPU remark above)
+
+- The earlier single-shot `top` CPU reading was unreliable; whole-system idle says little about one audio thread. `tools/mpc_threads.sh` reads per-thread CPU from `/proc`: with 4 Fabric XL and SurgeXXL loaded and the user playing, the busiest MPC thread peaked at 9 to 11% of a core. Not a CPU problem.
+- `tools/watch_midi.py` (background watcher): across many windows every LinnStrument note reached "MPE Bridge 2 MIDI Out", evenly over channels 2 to 5, while the user heard notes missing. The bridge sends bends (403), Y and pressure on channels 2 to 5 as well. ALSA counters for the MPC's input queue: 0 allocation failures, peak 10 of 200.
+- Playing the LinnStrument straight into one Fabric track (no bridge) is clean (no MPE).
+- An app restart and project reload changed nothing.
+- Turning monitoring off on the Surge send track and the bridge-1 plugin track made all fast notes sound again, but Fabric bends then played "super glitchy". The user also hears cross-talk between slides (a held note moves when another slides) and says Fabric's legato setting changes the symptom.
+- Reading: loss and cross-talk happen between the MPC's port input and the Fabric tracks, not in the bridge. Suspected: the MPC's per-track channel filter does not isolate bends and pressure (cross-talk), and Fabric legato can swallow overlapping notes.
+- Untested ideas: `MPETemplate_SendMPE` (copy of the template with Send MPE on for the Fabric tracks); a bridge option giving each Rotate voice its own ALSA output port so the MPC routes by port, not channel.
