@@ -202,3 +202,7 @@ work is worth it. Do not assume further development is wanted; ask.
 - The saved `.xpj` is only as new as the user's last save; the `_[AutoSave]` copy is
   often newer.
 - Restarting the MPC app discards the unsaved project. Ask first.
+
+## Rapid-play check of Rotate, 2026-11-15
+
+Saved template (`MPETemplate`, 02:52 UTC): bridge 2 is Rotate, 4 voices, first channel 2, Input Port; instrument copies listen on channels 2 to 5. That matches. A capture with `tools/capture_midi.py` (LinnStrument port vs "MPE Bridge 2" MIDI Out) while the user played fast: 82 of 82 controller notes appeared at the bridge output within 50 ms, spread over channels 2 to 5. So the MPC hop and the bridge lost nothing in that run; if keys still do not sound, look downstream (instrument copies, voice stealing beyond 4 notes, CPU). Not measured: the bridge's input port cannot be recorded (write-only), and CPU was sampled once mid-run at under 5% MPC, with the idle-looking load, so it says little about the heavy two-SurgeXXL case.
