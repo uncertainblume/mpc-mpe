@@ -222,3 +222,12 @@ Saved template (`MPETemplate`, 02:52 UTC): bridge 2 is Rotate, 4 voices, first c
 - New setting Out Ports (Single / Per Voice; Rotate only). Per Voice makes one ALSA port per output channel, named "Ch 2 Out", "Ch 3 Out", and so on (the MPC lists them as "MPE Bridge 2 Ch 3 Out"), so each Fabric copy routes by port, not by the MPC's channel filter. Aim: stop bend cross-talk between copies. Unit-tested (channel mapping) and built; checked on a device only after the push recorded below.
 - `tools/mpc_project.py ports <addr> "<project>" "<new>"` makes a copy with Rotate bridges set to Per Voice and Fabric-style tracks pointed at their own port (channel Any). Written for the MPC: `MPETemplate_Ports` and `Claude_MPEClean_Ports` (originals untouched).
 - If it does not help: the next suspects are Fabric XL's legato/voice settings and the MPC's own handling; see the findings above.
+
+### Result of bridge 0.3.0 on the device, 2026-11-15 evening (user paused troubleshooting)
+
+- Installed 0.3.0 and the two `_Ports` templates. The MPC noticed the new ports ("MPE Bridge 2 Ch 2 Out" to "Ch 5 Out") and subscribed to them. A per-port capture showed each port carrying exactly one channel, dealt out evenly (36/36/37/35 notes). Every controller note reached the bridge output in every watcher window.
+- It did not change what the user hears: notes still drop and slides are still wrong, "very similar to before". So the MPC's channel filter is not the cause of the cross-talk. With all Surge monitoring tracks off, Fabric was "way worse than earlier".
+- The LinnStrument had been sending on channels 9 to 15 for a while (upper zone); the user reset its MPE settings and it is back on 2 to 8. The bridge dealt both correctly.
+- Ruled out by measurement: bridge loss, MPC input queue, CPU (per-thread peak about 10% of a core), channel-filter cross-talk. Direct LinnStrument to one Fabric track is clean (no MPE).
+- Not tried: a full reboot with the charger out (clears the kernel USB-MIDI fault from the replugs); `MPETemplate_SendMPE`; Y Dest and Z Dest set to Off (Fabric may use CC74/pressure for filter or volume); one Fabric copy alone on a Per Voice port, played with one finger at a time; Fabric legato/mono/voice-limit settings; the same test with a different instrument instead of Fabric XL (to separate Fabric from the MPC's delivery).
+- Watcher and capture tools: `tools/watch_midi.py`, `tools/capture_midi.py`, `tools/mpc_threads.sh`.

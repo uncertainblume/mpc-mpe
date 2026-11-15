@@ -32,6 +32,18 @@ def find_port(clients, client_name, port_name=None):
             return "%d:%s" % (cur[0], p.group(1))
     return None
 
+def find_out_ports(clients, client_name):
+    """Every output port of a client: "MIDI Out" and, for Per Voice bridges, "Ch N Out"."""
+    cur = None; found = []
+    for line in clients.splitlines():
+        m = re.match(r'Client\s+(\d+) : "(.*?)"', line)
+        if m:
+            cur = (int(m.group(1)), m.group(2)); continue
+        p = re.match(r'\s+Port\s+(\d+) : "(.*?)"', line)
+        if p and cur and cur[1] == client_name and (p.group(2) == "MIDI Out" or re.fullmatch(r"Ch \d+ Out", p.group(2))):
+            found.append("%d:%s" % (cur[0], p.group(1)))
+    return found
+
 def smf_events(data):
     """Note-ons from a type-1 standard MIDI file: [(track, ms, channel, note, velocity)]."""
     if data[:4] != b"MThd": raise ValueError("not a MIDI file")

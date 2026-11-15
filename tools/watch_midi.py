@@ -11,7 +11,7 @@ Read-only on the device (writes only /tmp/watch.mid).
 """
 import argparse, os, re, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from capture_midi import ssh, find_port, smf_events
+from capture_midi import ssh, find_port, find_out_ports, smf_events
 
 def main():
     ap = argparse.ArgumentParser()
@@ -27,8 +27,11 @@ def main():
     while time.time() < end:
         try:
             clients = ssh(a.address, "cat /proc/asound/seq/clients").decode(errors="replace")
-            src = find_port(clients, a.source); outs = [find_port(clients, b.strip(), "MIDI Out") for b in a.bridge.split(",")]
-            outs = [o for o in outs if o]; out = ",".join(outs)
+            src = find_port(clients, a.source); names = [b.strip() for b in a.bridge.split(",")]
+            outs = []; owner = []
+            for b in names:
+                for o in find_out_ports(clients, b): outs.append(o); owner.append(b)
+            out = ",".join(outs)
             if not src or not out:
                 log("ports not open (project closed?); waiting"); time.sleep(20); continue
             cmd = ("rm -f /tmp/watch.mid; arecordmidi -f 25 -t 40 -p %s,%s /tmp/watch.mid >/dev/null 2>&1 & P=$!; "
@@ -43,8 +46,10 @@ def main():
         if not data:
             log("no file recorded"); continue
         ev = smf_events(data); inn = [e for e in ev if e[0] == 0]; got = [e for e in ev if e[0] >= 1]
-        per_bridge = {a.bridge.split(",")[e[0]-1].strip() if e[0]-1 < len(outs) else "?": 0 for e in got}
-        for e in got: per_bridge[a.bridge.split(",")[e[0]-1].strip()] += 1
+        per_bridge = {}
+        for e in got:
+            k = owner[e[0]-1] if e[0]-1 < len(owner) else "?"
+            per_bridge[k] = per_bridge.get(k, 0) + 1
         free = list(got); lost = []
         for t, ms, ch, n, v in inn:
             hit = next((g for g in free if g[3] == n and -50 <= g[1] - ms <= 50), None)
