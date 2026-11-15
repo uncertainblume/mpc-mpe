@@ -6,6 +6,11 @@
         warnings about risky routing; and, for each recorded clip, how many notes have no
         pressure data recorded for them.
 
+    tools/mpc_project.py ports <address> "<Project name>" "<New name>"
+        For bridge 0.3.0: switches every MPE Bridge that is in Rotate mode to "Out Ports: Per
+        Voice", and points each instrument track that listens to "<bridge> MIDI Out" on one
+        channel at that bridge's "Ch N Out" port instead (channel Any). Writes a copy.
+
     tools/mpc_project.py copy <address> "<Project name>" "<New name>" [--send-mpe PLUGIN[,PLUGIN...]]
                                                        [--input "TRACK=PORT" ...]
         Writes "<New name>.xpj" next to the original (which is never changed) and copies its
@@ -64,6 +69,102 @@ def clips(data):
     return walk(data)
 
 
+_B64 = ".ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+"
+
+
+def juce_decode(text):
+    """JUCE MemoryBlock::fromBase64Encoding: "<size>.<6 bits at a time, low bits first>"."""
+    size, _, body = text.partition(".")
+    acc = bits = 0
+    out = bytearray()
+    for ch in body:
+        acc |= _B64.index(ch) << bits
+        bits += 6
+        while bits >= 8:
+            out.append(acc & 255); acc >>= 8; bits -= 8
+    return bytes(out[:int(size)])
+
+
+def juce_encode(data):
+    acc = bits = 0
+    out = []
+    for b in data:
+        acc |= b << bits
+        bits += 8
+        while bits >= 6:
+            out.append(_B64[acc & 63]); acc >>= 6; bits -= 6
+    if bits:
+        out.append(_B64[acc & 63])
+    return "%d.%s" % (len(data), "".join(out))
+
+
+def bridge_state_params(blob):
+    """(offset of the first entry, count, {name: (value offset, value)}) of a bridge's saved state."""
+    import struct
+    i = blob.index(b"MPCP")
+    count = struct.unpack_from("<I", blob, i + 8)[0]
+    pos = i + 12
+    found = {}
+    for _ in range(count):
+        n = blob[pos]; name = blob[pos + 1:pos + 1 + n].decode()
+        found[name] = (pos + 1 + n, struct.unpack_from("<f", blob, pos + 1 + n)[0])
+        pos += 1 + n + 8
+    return i, count, pos, found
+
+
+def set_bridge_ports(plugin):
+    """Out Ports = Per Voice in a Rotate bridge's saved state. Returns True if changed."""
+    import struct
+    blob = juce_decode(plugin["state"])
+    if juce_encode(blob) != plugin["state"]:
+        return False
+    i, count, end, found = bridge_state_params(blob)
+    if found.get("mode", (0, 0))[1] != 1.0:
+        return False
+    if "outports" in found:
+        off = found["outports"][0]
+        blob = blob[:off] + struct.pack("<ff", 1.0, 1.0) + blob[off + 8:]
+    else:
+        entry = bytes([8]) + b"outports" + struct.pack("<ff", 1.0, 1.0)
+        blob = blob[:end] + entry + blob[end:]
+        blob = blob[:i + 8] + struct.pack("<I", count + 1) + blob[i + 12:]
+        size = struct.unpack(">I", blob[i - 4:i])[0] + len(entry)
+        blob = blob[:i - 4] + struct.pack(">I", size) + blob[i:]
+    plugin["state"] = juce_encode(blob)
+    plugin["presetEdited"] = True
+    return True
+
+
+def ports(address, name, new):
+    header, doc = load(address, name)
+    changed = []
+    rotate_bridges = 0
+    for t in doc["data"]["tracks"]:
+        pname, plugin = plugin_name(t)
+        if pname == "MPE Bridge" and set_bridge_ports(t["program"]["plugin"]["plugin"]):
+            rotate_bridges += 1
+            changed.append("%s: Out Ports set to Per Voice" % t["name"])
+    for t in doc["data"]["tracks"]:
+        pname, plugin = plugin_name(t)
+        route = t["midiInputRoute"]
+        dev = route["inputPort"]["deviceName"]
+        if pname is None or "Bridge" in pname or not dev.startswith("MPE Bridge") or not dev.endswith(" MIDI Out"):
+            continue
+        if route["inputChannel"] == 0:
+            continue                                  # listens to every channel: not a Rotate copy
+        client = dev[:-len(" MIDI Out")]
+        route["inputPort"]["deviceName"] = "%s Ch %d Out" % (client, route["inputChannel"])
+        route["inputPort"]["deviceId"] = ""
+        changed.append("%s: input %s ch %d -> %s" % (t["name"], dev, route["inputChannel"], route["inputPort"]["deviceName"]))
+        route["inputChannel"] = 0
+    if not rotate_bridges:
+        sys.exit("No bridge in Rotate mode found; no copy written.")
+    write_copy(address, name, new, header, doc)
+    print('Wrote "%s" on the MPC:' % new)
+    for c in changed:
+        print("  " + c)
+
+
 def show(address, name):
     _, doc = load(address, name)
     data = doc["data"]
@@ -103,6 +204,17 @@ def show(address, name):
               % (cname, len(ev), len(notes), channels, bare if has_press else len(notes)))
 
 
+def write_copy(address, name, new, header, doc):
+    target = "%s/%s.xpj" % (PROJECTS, new)
+    if ssh(address, "test -e %s && echo yes || true" % shlex.quote(target)).strip():
+        sys.exit('"%s" already exists on the MPC; choose another name.' % new)
+    body = header + json.dumps(doc, indent=0, ensure_ascii=False).encode()
+    ssh(address, "cat > " + shlex.quote(target), gzip.compress(body))
+    src = "%s/%s_[ProjectData]" % (PROJECTS, name)
+    dst = "%s/%s_[ProjectData]" % (PROJECTS, new)
+    ssh(address, "if [ -d %s ]; then cp -r %s %s; fi" % (shlex.quote(src), shlex.quote(src), shlex.quote(dst)))
+
+
 def copy(address, name, new, send_mpe, inputs):
     header, doc = load(address, name)
     changed = []
@@ -120,14 +232,7 @@ def copy(address, name, new, send_mpe, inputs):
                 changed.append("input of %s set to %s" % (track, port))
     if not changed:
         sys.exit("Nothing matched; no copy written.")
-    target = "%s/%s.xpj" % (PROJECTS, new)
-    if ssh(address, "test -e %s && echo yes || true" % shlex.quote(target)).strip():
-        sys.exit('"%s" already exists on the MPC; choose another name.' % new)
-    body = header + json.dumps(doc, indent=0, ensure_ascii=False).encode()
-    ssh(address, "cat > " + shlex.quote(target), gzip.compress(body))
-    src = "%s/%s_[ProjectData]" % (PROJECTS, name)
-    dst = "%s/%s_[ProjectData]" % (PROJECTS, new)
-    ssh(address, "if [ -d %s ]; then cp -r %s %s; fi" % (shlex.quote(src), shlex.quote(src), shlex.quote(dst)))
+    write_copy(address, name, new, header, doc)
     print('Wrote "%s" on the MPC:' % new)
     for c in changed:
         print("  " + c)
@@ -139,8 +244,11 @@ def main():
     s = sub.add_parser("show"); s.add_argument("address"); s.add_argument("project")
     c = sub.add_parser("copy"); c.add_argument("address"); c.add_argument("project"); c.add_argument("new")
     c.add_argument("--send-mpe", default=""); c.add_argument("--input", action="append", default=[])
+    q = sub.add_parser("ports"); q.add_argument("address"); q.add_argument("project"); q.add_argument("new")
     a = ap.parse_args()
-    if a.cmd == "show":
+    if a.cmd == "ports":
+        ports(a.address, a.project, a.new)
+    elif a.cmd == "show":
         show(a.address, a.project)
     else:
         copy(a.address, a.project, a.new, [w for w in a.send_mpe.split(",") if w],

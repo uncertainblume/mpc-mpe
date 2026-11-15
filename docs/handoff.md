@@ -216,3 +216,9 @@ Saved template (`MPETemplate`, 02:52 UTC): bridge 2 is Rotate, 4 voices, first c
 - Turning monitoring off on the Surge send track and the bridge-1 plugin track made all fast notes sound again, but Fabric bends then played "super glitchy". The user also hears cross-talk between slides (a held note moves when another slides) and says Fabric's legato setting changes the symptom.
 - Reading: loss and cross-talk happen between the MPC's port input and the Fabric tracks, not in the bridge. Suspected: the MPC's per-track channel filter does not isolate bends and pressure (cross-talk), and Fabric legato can swallow overlapping notes.
 - Untested ideas: `MPETemplate_SendMPE` (copy of the template with Send MPE on for the Fabric tracks); a bridge option giving each Rotate voice its own ALSA output port so the MPC routes by port, not channel.
+
+### Bridge 0.3.0 (per-voice output ports), 2026-11-15
+
+- New setting Out Ports (Single / Per Voice; Rotate only). Per Voice makes one ALSA port per output channel, named "Ch 2 Out", "Ch 3 Out", and so on (the MPC lists them as "MPE Bridge 2 Ch 3 Out"), so each Fabric copy routes by port, not by the MPC's channel filter. Aim: stop bend cross-talk between copies. Unit-tested (channel mapping) and built; checked on a device only after the push recorded below.
+- `tools/mpc_project.py ports <addr> "<project>" "<new>"` makes a copy with Rotate bridges set to Per Voice and Fabric-style tracks pointed at their own port (channel Any). Written for the MPC: `MPETemplate_Ports` and `Claude_MPEClean_Ports` (originals untouched).
+- If it does not help: the next suspects are Fabric XL's legato/voice settings and the MPC's own handling; see the findings above.
