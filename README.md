@@ -63,6 +63,8 @@ There is also a recipe that needs no plugins, only one track per channel.
   that configure it, from the firmware source.
 - [docs/sources.md](docs/sources.md): every document gathered, with links and pinned
   versions.
+- [docs/launchpad-research.md](docs/launchpad-research.md): launching Clip Matrix clips
+  from another device (none of the routes found works yet; open leads).
 
 ## Build
 
