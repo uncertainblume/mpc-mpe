@@ -8,6 +8,10 @@ Carlos, the pioneer without whom none of this would be possible.*
 **Status: both plugins (version 0.2.2) are in use on an MPC Live III (3.10.1.12), played
 from a LinnStrument.**
 
+
+If anyone finds any of this this super useful and can afford it, send me a tip on PayPal, I'm hilariously unemployed: <img width="500" height="500" alt="paypalqrcode" src="https://github.com/user-attachments/assets/f481d192-200a-4d61-a5a7-09f00cb26175" />
+
+
 - **MPE Bridge, Thru mode:** passes full MPE to an MPE instrument (SurgeXXL) and records
   usable takes.
 - **MPE Bridge, Rotate mode:** works with one copy of a stock instrument per channel
